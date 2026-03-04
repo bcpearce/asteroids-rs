@@ -1,0 +1,14 @@
+on:
+    - push
+    - pull_request
+    - workflow_dispatch
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - name: Install trunk
+              run: cargo install --locked trunk
+            - name: Build project
+              run: trunk build

@@ -22,4 +22,4 @@ jobs:
                   cargo install cargo-binstall
                   cargo binstall trunk
             - name: Build project
-              run: trunk build --profile ${{ matrix.config }}
+              run: trunk build ${{ matrix.config == 'release' && '--release' }}

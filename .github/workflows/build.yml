@@ -5,10 +5,20 @@ on:
 
 jobs:
     build:
+        strategy:
+            matrix:
+                config: [debug, release]
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
+            - name: Setup Rust Toolchain
+              run: rustup target add wasm32-unknown-unknown
+            - name: Rust Cache
+              uses: Swatinem/rust-cache@v2
             - name: Install trunk
-              run: cargo install --locked trunk
+              run: |-
+                  cargo install wasm-bindgen-cli
+                  cargo install cargo-binstall
+                  cargo binstall trunk
             - name: Build project
-              run: trunk build
+              run: trunk build --profile ${{ matrix.config }}

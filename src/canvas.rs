@@ -1,15 +1,11 @@
-use yew::{html, Component, Context, Html};
+use yew::{Component, Context, Html, html};
 
-
-pub struct Canvas {
-
-}
+pub struct Canvas {}
 impl Component for Canvas {
     type Message = ();
     type Properties = ();
     fn create(_ctx: &Context<Self>) -> Self {
-        Self {
-        }
+        Self {}
     }
 
     fn update(&mut self, _ctx: &Context<Self>, _msg: Self::Message) -> bool {

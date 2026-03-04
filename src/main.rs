@@ -1,23 +1,14 @@
 mod canvas;
+mod ship;
+
 use canvas::Canvas;
 use yew::prelude::*;
 
 #[component]
 fn App() -> Html {
-    let counter = use_state(|| 0);
-    let onclick = {
-        let counter = counter.clone();
-        move |_| {
-            let value = *counter + 2;
-            counter.set(value);
-        }
-    };
-
     html! {
         <div>
             <Canvas />
-            <button {onclick}>{ "+2" }</button>
-            <p>{ *counter }</p>
         </div>
     }
 }

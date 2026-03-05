@@ -4,5 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+gloo = "0.11.0"
+rand = "0.10.0"
 web-sys = "0.3.91"
 yew = { version = "0.22.1", features = ["csr"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4.2", features = ["wasm_js"] }

@@ -1,14 +1,14 @@
-mod canvas;
+mod engine;
 mod ship;
 
-use canvas::Canvas;
+use engine::Engine;
 use yew::prelude::*;
 
 #[component]
 fn App() -> Html {
     html! {
-        <div>
-            <Canvas />
+        <div class="engine-window">
+            <Engine />
         </div>
     }
 }

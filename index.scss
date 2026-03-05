@@ -1,3 +1,13 @@
-.canvas-window {
+.engine-window {
+    display: grid;
     background-color: black;
+    place-items: center;
+    width: 50%;
+    height: auto;
+}
+
+.svg-container sbg {
+    height: auto;
+    width: 50%;
+    display: block;
 }

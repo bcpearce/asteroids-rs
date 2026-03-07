@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 mod asteroid;
 mod engine;
 mod math;

@@ -13,6 +13,9 @@ yew = { version = "0.22.1", features = ["csr"] }
 
 [dev-dependencies]
 cargo-llvm-cov = "0.8.4"
+is-svg = "0.2.2"
+quickcheck = "1.1.0"
+quickcheck_macros = "1.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4.2", features = ["wasm_js"] }

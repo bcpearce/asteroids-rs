@@ -28,9 +28,9 @@ pub struct Engine {
     ship: Ship,
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
-    interval: Interval,
-    keydown: EventListener,
-    keyup: EventListener,
+    _interval: Interval,
+    _keydown: EventListener,
+    _keyup: EventListener,
 }
 impl Engine {
     fn get_context(&self) -> GameContext {
@@ -89,9 +89,9 @@ impl Component for Engine {
             ship: Ship::create(WIDTH as f32, HEIGHT as f32),
             shots: Vec::new(),
             asteroids: vec![Asteroid::spawn(WIDTH as f32, HEIGHT as f32)],
-            interval: interval,
-            keydown: keydown,
-            keyup: keyup,
+            _interval: interval,
+            _keydown: keydown,
+            _keyup: keyup,
         }
     }
 

@@ -1,8 +1,6 @@
 use core::fmt;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use approx::assert_relative_eq;
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
     pub x: f32,
@@ -108,6 +106,7 @@ impl fmt::Display for Point {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_relative_eq;
 
     #[test]
     fn it_adds() {

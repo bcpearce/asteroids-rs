@@ -10,12 +10,16 @@ const MIN_ASTEROID_RADIUS: f32 = 3.0;
 const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.2;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Size {
     Small,
     Medium,
     Large,
     Destroyed,
 }
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Asteroid {
     p: Point,
     v: Point,
@@ -81,17 +85,40 @@ impl Asteroid {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use is_svg::is_svg_string;
+    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck_macros::quickcheck;
 
-    #[test]
-    fn it_spawns_random_asteroids() {
-        const TEST_COUNT: u32 = 300;
-        for _ in 0..TEST_COUNT {
-            let a = Asteroid::spawn(100.0, 200.0);
-            assert!(a.p.x >= 0.0);
-            assert!(a.p.y >= 0.0);
-            assert!(a.p.x <= 100.0);
-            assert!(a.p.y <= 200.0);
-            assert!(a.edge_points.len() >= 3); // is a polygon
+    #[derive(Clone, Debug)]
+    struct PositiveFloat(f32);
+
+    impl Arbitrary for PositiveFloat {
+        fn arbitrary(g: &mut Gen) -> Self {
+            let f = f32::arbitrary(g);
+            if !f.is_finite() {
+                PositiveFloat::arbitrary(g)
+            } else {
+                PositiveFloat(f.abs())
+            }
         }
+    }
+
+    #[quickcheck]
+    fn it_spawns_an_asteroid_in_bounds(w: PositiveFloat, h: PositiveFloat) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0);
+        TestResult::from_bool(a.p.x <= w.0 && a.p.y <= h.0)
+    }
+
+    #[quickcheck]
+    fn it_is_a_polygon(w: PositiveFloat, h: PositiveFloat) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0);
+        TestResult::from_bool(a.edge_points.len() >= 3)
+    }
+
+    #[quickcheck]
+    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0);
+        let svg_wrap = format!("<svg>{:?}</svg>", a.render());
+        TestResult::from_bool(is_svg_string(svg_wrap))
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    engine::GameContext,
+    engine::{GameContext, GameElement},
     math::{Point, from_polar},
 };
 use yew::{Html, html};
@@ -17,14 +17,16 @@ impl Shot {
             ttl: 1400.0,
         }
     }
-    pub fn update(&mut self, ctx: &GameContext) {
+}
+impl GameElement for Shot {
+    fn update(&mut self, ctx: &GameContext) {
         self.p += self.v * ctx.t;
         self.ttl -= ctx.t;
     }
-    pub fn alive(&self) -> bool {
+    fn alive(&self) -> bool {
         self.ttl > 0.0
     }
-    pub fn render(&self) -> Html {
+    fn render(&self) -> Html {
         html! { <circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="1" stroke="white" fill="white"/> }
     }
 }

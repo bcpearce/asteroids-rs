@@ -21,6 +21,13 @@ pub struct GameContext {
     pub h: f32,
     pub t: f32,
 }
+
+pub trait GameElement {
+    fn update(&mut self, ctx: &GameContext);
+    fn alive(&self) -> bool;
+    fn render(&self) -> Html;
+}
+
 pub struct Engine {
     pub w: u32,
     pub h: u32,
@@ -106,8 +113,8 @@ impl Component for Engine {
                     "w" | "W" => self.ship.thrust(),
                     "a" | "A" => self.ship.rotate_left(),
                     "d" | "D" => self.ship.rotate_right(),
-                    "." | ">" | "+" => self.shots.push(self.ship.shoot()),
-                    "Spacebar" | " " => self.ship.hyperspace(),
+                    "." | ">" | "+" => self.ship.hyperspace(),
+                    "Spacebar" | " " => self.shots.push(self.ship.shoot()),
                     _ => (),
                 }
                 false

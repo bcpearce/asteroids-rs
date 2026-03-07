@@ -1,5 +1,6 @@
 use crate::{
     engine::GameContext,
+    engine::GameElement,
     math::{Point, from_polar},
 };
 use itertools::Itertools;
@@ -60,13 +61,19 @@ impl Asteroid {
             sz: sz,
         }
     }
+}
 
-    pub fn update(&mut self, ctx: &GameContext) {
+impl GameElement for Asteroid {
+    fn update(&mut self, ctx: &GameContext) {
         self.p += self.v * ctx.t;
         self.p.wrap(ctx.w as f32, ctx.h as f32);
     }
 
-    pub fn render(&self) -> Html {
+    fn alive(&self) -> bool {
+        self.sz != Size::Destroyed
+    }
+
+    fn render(&self) -> Html {
         let scale = match self.sz {
             Size::Large => 2.0,
             Size::Medium => 1.0,

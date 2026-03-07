@@ -1,5 +1,6 @@
 use crate::asteroid::Asteroid;
 use crate::ship::Ship;
+use crate::shot::Shot;
 use gloo::events::EventListener;
 use gloo::timers::callback::Interval;
 use web_sys::{KeyboardEvent, wasm_bindgen::JsCast};
@@ -25,6 +26,7 @@ pub struct Engine {
     pub h: u32,
     pub t: f32,
     ship: Ship,
+    shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
     interval: Interval,
     keydown: EventListener,
@@ -73,6 +75,7 @@ impl Component for Engine {
             h: HEIGHT,
             t: INTERVAL_DURATION_MILLIS as f32,
             ship: Ship::create(WIDTH as f32, HEIGHT as f32),
+            shots: Vec::new(),
             asteroids: vec![Asteroid::spawn(WIDTH as f32, HEIGHT as f32)],
             interval: interval,
             keydown: keydown,
@@ -88,6 +91,10 @@ impl Component for Engine {
                 for a in self.asteroids.iter_mut() {
                     a.update(&ctx);
                 }
+                for s in self.shots.iter_mut() {
+                    s.update(&ctx);
+                }
+                self.shots.retain(|s| s.alive());
                 true
             }
             Msg::Keydown(e) => {
@@ -95,7 +102,7 @@ impl Component for Engine {
                     "w" | "W" => self.ship.thrust(),
                     "a" | "A" => self.ship.rotate_left(),
                     "d" | "D" => self.ship.rotate_right(),
-                    "." | ">" | "+" => self.ship.shoot(),
+                    "." | ">" | "+" => self.shots.push(self.ship.shoot()),
                     "Spacebar" | " " => self.ship.hyperspace(),
                     _ => (),
                 }
@@ -118,6 +125,7 @@ impl Component for Engine {
         html! {
             <svg class="svg-container" viewBox={view_box}>
                 {self.ship.render()}
+                {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
             </svg>
         }

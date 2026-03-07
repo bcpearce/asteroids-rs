@@ -2,6 +2,7 @@ mod asteroid;
 mod engine;
 mod math;
 mod ship;
+mod shot;
 
 use engine::Engine;
 use yew::prelude::*;

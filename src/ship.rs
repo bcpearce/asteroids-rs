@@ -1,5 +1,6 @@
 use crate::engine::GameContext;
 use crate::math::{Point, from_polar};
+use crate::shot::Shot;
 use rand::RngExt;
 use yew::{Html, html};
 
@@ -52,7 +53,9 @@ impl Ship {
         self.omega_rad = 0.0;
     }
 
-    pub fn shoot(&self) {}
+    pub fn shoot(&self) -> Shot {
+        Shot::create(self.p, self.theta_rad)
+    }
 
     pub fn hyperspace(&mut self) {
         let mut rng = rand::rng();

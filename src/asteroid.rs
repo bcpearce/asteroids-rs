@@ -14,6 +14,7 @@ enum Size {
     Small,
     Medium,
     Large,
+    Destroyed,
 }
 pub struct Asteroid {
     p: Point,
@@ -42,7 +43,8 @@ impl Asteroid {
         let sz = match proto {
             0 => Size::Large,
             1 => Size::Medium,
-            _ => Size::Small,
+            2 => Size::Small,
+            _ => Size::Destroyed,
         };
         Asteroid {
             p: p,
@@ -65,6 +67,7 @@ impl Asteroid {
             Size::Large => 2.0,
             Size::Medium => 1.0,
             Size::Small => 0.55,
+            Size::Destroyed => 0.0,
         };
         let points = self
             .edge_points

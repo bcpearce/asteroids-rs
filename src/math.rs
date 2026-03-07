@@ -1,6 +1,7 @@
-use approx::assert_relative_eq;
 use core::fmt;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+
+use approx::assert_relative_eq;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
@@ -136,4 +137,14 @@ fn it_mul_assigns() {
     p1 *= 3.0;
     assert_relative_eq!(p1.x, 3.0);
     assert_relative_eq!(p1.y, 15.0);
+}
+
+#[test]
+fn it_converts_from_polar() {
+    let p1 = from_polar(2.0, std::f32::consts::PI * 0.5);
+    assert_relative_eq!(p1.x, 0.0);
+    assert_relative_eq!(p1.y, 2.0);
+    let p1 = from_polar(2.0, std::f32::consts::PI * -0.25);
+    assert_relative_eq!(p1.x, 1.41, epsilon = 0.01);
+    assert_relative_eq!(p1.y, -1.41, epsilon = 0.01);
 }

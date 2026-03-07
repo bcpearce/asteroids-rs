@@ -3,8 +3,8 @@ use crate::ship::Ship;
 use crate::shot::Shot;
 use gloo::events::EventListener;
 use gloo::timers::callback::Interval;
-use web_sys::{KeyboardEvent, wasm_bindgen::JsCast};
-use yew::{Component, Context, Html, Properties, html};
+use web_sys::wasm_bindgen::JsCast;
+use yew::{Component, Context, Html, html};
 
 const INTERVAL_DURATION_MILLIS: u32 = 33;
 const WIDTH: u32 = 480;
@@ -39,6 +39,18 @@ impl Engine {
             h: self.h as f32,
             t: self.t,
         }
+    }
+
+    fn handle_loop_update(&mut self) {
+        let ctx = self.get_context();
+        self.ship.update(&ctx);
+        for a in self.asteroids.iter_mut() {
+            a.update(&ctx);
+        }
+        for s in self.shots.iter_mut() {
+            s.update(&ctx);
+        }
+        self.shots.retain(|s| s.alive());
     }
 }
 impl Component for Engine {
@@ -86,15 +98,7 @@ impl Component for Engine {
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Tick => {
-                let ctx = self.get_context();
-                self.ship.update(&ctx);
-                for a in self.asteroids.iter_mut() {
-                    a.update(&ctx);
-                }
-                for s in self.shots.iter_mut() {
-                    s.update(&ctx);
-                }
-                self.shots.retain(|s| s.alive());
+                self.handle_loop_update();
                 true
             }
             Msg::Keydown(e) => {

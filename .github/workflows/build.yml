@@ -15,7 +15,7 @@ jobs:
             - name: Setup Rust Toolchain
               run: |-
                   rustup target add wasm32-unknown-unknown
-                  rustup component add llvm-tools-preview
+                  rustup component add llvm-tools
             - name: Rust Cache
               uses: Swatinem/rust-cache@v2
             - name: Install trunk
@@ -24,6 +24,7 @@ jobs:
                   cargo install wasm-bindgen-cli
                   cargo install cargo-binstall
                   cargo binstall --force trunk -y
+                  cargo install cargo-llvm-cov
             - name: Build project
               run: trunk build --frozen ${{ matrix.config == 'release' && '--release' || '' }}
             - name: Test project

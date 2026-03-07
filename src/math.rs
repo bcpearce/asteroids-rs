@@ -105,46 +105,50 @@ impl fmt::Display for Point {
         write!(f, "{},{}", self.x, self.y)
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn it_adds() {
-    let p1 = Point { x: 1.0, y: 5.0 };
-    let p2 = Point { x: 2.5, y: 4.2 };
-    let p3 = p1 + p2;
-    assert_relative_eq!(p3.x, 3.5);
-    assert_relative_eq!(p3.y, 9.2);
-}
+    #[test]
+    fn it_adds() {
+        let p1 = Point { x: 1.0, y: 5.0 };
+        let p2 = Point { x: 2.5, y: 4.2 };
+        let p3 = p1 + p2;
+        assert_relative_eq!(p3.x, 3.5);
+        assert_relative_eq!(p3.y, 9.2);
+    }
 
-#[test]
-fn it_add_assigns() {
-    let mut p1 = Point { x: 1.0, y: 5.0 };
-    let p2 = Point { x: 2.5, y: 4.2 };
-    p1 += p2;
-    assert_relative_eq!(p1.x, 3.5);
-    assert_relative_eq!(p1.y, 9.2);
-}
+    #[test]
+    fn it_add_assigns() {
+        let mut p1 = Point { x: 1.0, y: 5.0 };
+        let p2 = Point { x: 2.5, y: 4.2 };
+        p1 += p2;
+        assert_relative_eq!(p1.x, 3.5);
+        assert_relative_eq!(p1.y, 9.2);
+    }
 
-#[test]
-fn it_muls() {
-    let p1 = Point { x: 1.0, y: 5.0 } * 3.0;
-    assert_relative_eq!(p1.x, 3.0);
-    assert_relative_eq!(p1.y, 15.0);
-}
+    #[test]
+    fn it_muls() {
+        let p1 = Point { x: 1.0, y: 5.0 } * 3.0;
+        assert_relative_eq!(p1.x, 3.0);
+        assert_relative_eq!(p1.y, 15.0);
+    }
 
-#[test]
-fn it_mul_assigns() {
-    let mut p1 = Point { x: 1.0, y: 5.0 };
-    p1 *= 3.0;
-    assert_relative_eq!(p1.x, 3.0);
-    assert_relative_eq!(p1.y, 15.0);
-}
+    #[test]
+    fn it_mul_assigns() {
+        let mut p1 = Point { x: 1.0, y: 5.0 };
+        p1 *= 3.0;
+        assert_relative_eq!(p1.x, 3.0);
+        assert_relative_eq!(p1.y, 15.0);
+    }
 
-#[test]
-fn it_converts_from_polar() {
-    let p1 = from_polar(2.0, std::f32::consts::PI * 0.5);
-    assert_relative_eq!(p1.x, 0.0);
-    assert_relative_eq!(p1.y, 2.0);
-    let p1 = from_polar(2.0, std::f32::consts::PI * -0.25);
-    assert_relative_eq!(p1.x, 1.41, epsilon = 0.01);
-    assert_relative_eq!(p1.y, -1.41, epsilon = 0.01);
+    #[test]
+    fn it_converts_from_polar() {
+        let p1 = from_polar(2.0, std::f32::consts::PI * 0.5);
+        assert_relative_eq!(p1.x, 0.0);
+        assert_relative_eq!(p1.y, 2.0);
+        let p1 = from_polar(2.0, std::f32::consts::PI * -0.25);
+        assert_relative_eq!(p1.x, 1.41, epsilon = 0.01);
+        assert_relative_eq!(p1.y, -1.41, epsilon = 0.01);
+    }
 }

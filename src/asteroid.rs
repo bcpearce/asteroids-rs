@@ -77,3 +77,21 @@ impl Asteroid {
         html! {<polygon points={points} stroke="white" />}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_spawns_random_asteroids() {
+        const TEST_COUNT: u32 = 300;
+        for _ in 0..TEST_COUNT {
+            let a = Asteroid::spawn(100.0, 200.0);
+            assert!(a.p.x >= 0.0);
+            assert!(a.p.y >= 0.0);
+            assert!(a.p.x <= 100.0);
+            assert!(a.p.y <= 200.0);
+            assert!(a.edge_points.len() >= 3); // is a polygon
+        }
+    }
+}

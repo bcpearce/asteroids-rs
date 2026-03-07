@@ -25,4 +25,4 @@ jobs:
             - name: Build project
               run: trunk build --frozen ${{ matrix.config == 'release' && '--release' || '' }}
             - name: Test project
-              run: cargo test
+              run: cargo llvm-cov test --lcov --output-path lcov.info

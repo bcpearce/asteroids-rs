@@ -4,3 +4,4 @@
 .cache
 custom_config.toml
 .DS_Store
+lcov.info

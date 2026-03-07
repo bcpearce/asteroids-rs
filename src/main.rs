@@ -1,4 +1,6 @@
+mod asteroid;
 mod engine;
+mod math;
 mod ship;
 
 use engine::Engine;

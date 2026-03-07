@@ -24,3 +24,5 @@ jobs:
                   cargo binstall --force trunk -y
             - name: Build project
               run: trunk build --frozen ${{ matrix.config == 'release' && '--release' || '' }}
+            - name: Test project
+              run: cargo test

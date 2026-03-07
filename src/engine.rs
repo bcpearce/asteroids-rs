@@ -1,3 +1,4 @@
+use crate::asteroid::Asteroid;
 use crate::ship::Ship;
 use gloo::events::EventListener;
 use gloo::timers::callback::Interval;
@@ -14,13 +15,29 @@ pub enum Msg {
     Keyup(web_sys::KeyboardEvent),
 }
 
+pub struct GameContext {
+    pub w: f32,
+    pub h: f32,
+    pub t: f32,
+}
 pub struct Engine {
-    w: u32,
-    h: u32,
+    pub w: u32,
+    pub h: u32,
+    pub t: f32,
     ship: Ship,
+    asteroids: Vec<Asteroid>,
     interval: Interval,
     keydown: EventListener,
     keyup: EventListener,
+}
+impl Engine {
+    fn get_context(&self) -> GameContext {
+        GameContext {
+            w: self.w as f32,
+            h: self.h as f32,
+            t: self.t,
+        }
+    }
 }
 impl Component for Engine {
     type Message = Msg;
@@ -54,7 +71,9 @@ impl Component for Engine {
         Self {
             w: WIDTH,
             h: HEIGHT,
+            t: INTERVAL_DURATION_MILLIS as f32,
             ship: Ship::create(WIDTH as f32, HEIGHT as f32),
+            asteroids: vec![Asteroid::spawn(WIDTH as f32, HEIGHT as f32)],
             interval: interval,
             keydown: keydown,
             keyup: keyup,
@@ -64,7 +83,11 @@ impl Component for Engine {
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Tick => {
-                self.ship.update(INTERVAL_DURATION_MILLIS as f32);
+                let ctx = self.get_context();
+                self.ship.update(&ctx);
+                for a in self.asteroids.iter_mut() {
+                    a.update(&ctx);
+                }
                 true
             }
             Msg::Keydown(e) => {
@@ -72,7 +95,7 @@ impl Component for Engine {
                     "w" | "W" => self.ship.thrust(),
                     "a" | "A" => self.ship.rotate_left(),
                     "d" | "D" => self.ship.rotate_right(),
-                    "." | ">" => self.ship.shoot(),
+                    "." | ">" | "+" => self.ship.shoot(),
                     "Spacebar" | " " => self.ship.hyperspace(),
                     _ => (),
                 }
@@ -95,6 +118,7 @@ impl Component for Engine {
         html! {
             <svg class="svg-container" viewBox={view_box}>
                 {self.ship.render()}
+                {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
             </svg>
         }
     }

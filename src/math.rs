@@ -9,10 +9,10 @@ pub struct Point {
 
 pub fn from_polar(r: f32, theta: f32) -> Point {
     let (sin, cos) = theta.sin_cos();
-    return Point {
+    Point {
         x: r * cos,
         y: r * sin,
-    };
+    }
 }
 
 impl Point {

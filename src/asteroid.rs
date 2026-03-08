@@ -52,13 +52,13 @@ impl Asteroid {
             _ => Size::Destroyed,
         };
         Asteroid {
-            p: p,
+            p,
             v: from_polar(
                 rng.random_range(MIN_ASTEROID_VELOCITY..=MAX_ASTEROID_VELOCITY),
                 rng.random_range(0.0..=2.0 * std::f32::consts::PI),
             ),
-            edge_points: edge_points,
-            sz: sz,
+            edge_points,
+            sz,
         }
     }
 }
@@ -66,7 +66,7 @@ impl Asteroid {
 impl GameElement for Asteroid {
     fn update(&mut self, ctx: &GameContext) {
         self.p += self.v * ctx.t;
-        self.p.wrap(ctx.w as f32, ctx.h as f32);
+        self.p.wrap(ctx.w, ctx.h);
     }
 
     fn alive(&self) -> bool {
@@ -83,7 +83,7 @@ impl GameElement for Asteroid {
         let points = self
             .edge_points
             .iter()
-            .map(|&p| return p * scale + self.p)
+            .map(|&p| p * scale + self.p)
             .join(" ");
         html! {<polygon points={points} stroke="white" />}
     }

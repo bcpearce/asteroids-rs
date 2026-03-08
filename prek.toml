@@ -17,5 +17,14 @@ hooks = [
         args = ["fmt", "--", "--check"],
         language = "system",
         files = "\\.rs$"
+    },
+    {
+        id = "clippy",
+        name = "Run clippy",
+        entry = "cargo",
+        args = ["clippy"],
+        language = "system",
+        files = "\\.rs$",
+        pass_filenames = false
     }
 ]

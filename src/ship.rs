@@ -24,8 +24,8 @@ impl Ship {
             omega_rad: 0.0,
             theta_rad: std::f32::consts::PI * 0.25,
             sz: 10.0,
-            w: w,
-            h: h,
+            w,
+            h,
         }
     }
 
@@ -63,7 +63,7 @@ impl GameElement for Ship {
     fn update(&mut self, ctx: &GameContext) {
         self.theta_rad += self.omega_rad * ctx.t;
         self.p += self.v * ctx.t;
-        self.p.wrap(ctx.w as f32, ctx.h as f32);
+        self.p.wrap(ctx.w, ctx.h);
     }
 
     fn alive(&self) -> bool {

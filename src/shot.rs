@@ -13,7 +13,7 @@ impl Shot {
         let v = from_polar(0.1, theta_rad);
         Shot {
             p: loc,
-            v: v,
+            v,
             ttl: 1400.0,
         }
     }

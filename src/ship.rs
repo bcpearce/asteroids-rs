@@ -1,4 +1,4 @@
-use crate::engine::GameContext;
+use crate::engine::{GameContext, GameElement};
 use crate::math::{Point, from_polar};
 use crate::shot::Shot;
 use rand::RngExt;
@@ -29,12 +29,6 @@ impl Ship {
         }
     }
 
-    pub fn update(&mut self, ctx: &GameContext) {
-        self.theta_rad += self.omega_rad * ctx.t;
-        self.p += self.v * ctx.t;
-        self.p.wrap(ctx.w as f32, ctx.h as f32);
-    }
-
     pub fn thrust(&mut self) {
         let dv = from_polar(0.01, self.theta_rad);
         self.v.x += dv.x;
@@ -63,8 +57,20 @@ impl Ship {
         self.p.y = rng.random_range(0.0..=self.h);
         self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI)
     }
+}
 
-    pub fn render(&self) -> Html {
+impl GameElement for Ship {
+    fn update(&mut self, ctx: &GameContext) {
+        self.theta_rad += self.omega_rad * ctx.t;
+        self.p += self.v * ctx.t;
+        self.p.wrap(ctx.w as f32, ctx.h as f32);
+    }
+
+    fn alive(&self) -> bool {
+        true
+    }
+
+    fn render(&self) -> Html {
         let p1 = from_polar(self.sz, self.theta_rad) + self.p;
         let p2 = from_polar(self.sz * 0.6, self.theta_rad + 0.75 * std::f32::consts::PI) + self.p;
         let p3 = from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;

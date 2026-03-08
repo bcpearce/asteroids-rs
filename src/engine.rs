@@ -50,14 +50,16 @@ impl Engine {
 
     fn handle_loop_update(&mut self) {
         let ctx = self.get_context();
-        self.ship.update(&ctx);
-        for a in self.asteroids.iter_mut() {
-            a.update(&ctx);
-        }
-        for s in self.shots.iter_mut() {
-            s.update(&ctx);
+        let mut game_elements: Vec<&mut dyn GameElement> = Vec::new();
+        game_elements.push(&mut self.ship);
+        game_elements.extend(self.asteroids.iter_mut().map(|a| a as &mut dyn GameElement));
+        game_elements.extend(self.shots.iter_mut().map(|s| s as &mut dyn GameElement));
+
+        for ge in game_elements.iter_mut() {
+            ge.update(&ctx);
         }
         self.shots.retain(|s| s.alive());
+        self.asteroids.retain(|a| a.alive());
     }
 }
 impl Component for Engine {

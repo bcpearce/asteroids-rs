@@ -113,7 +113,7 @@ mod tests {
     ) -> Result<()> {
         let w = w.0;
         let h = h.0;
-        let t = t.0 % 10000.0;
+        let t = t.0 % 10_000.0;
         let mut a = Asteroid::spawn(w, h);
         let ctx = GameContext { w, h, t };
         let iter_count = iter_count % 5000; // limit to 5000 iterations

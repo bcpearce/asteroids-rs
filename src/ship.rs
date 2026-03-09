@@ -79,3 +79,75 @@ impl GameElement for Ship {
         html! { <polygon points={points} stroke="white" /> }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::tests::PositiveFloat;
+    use googletest::prelude::*;
+    use is_svg::is_svg_string;
+    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat) -> TestResult {
+        let s = Ship::create(w.0, h.0);
+        let svg_wrap = format!("<svg>{:?}</svg>", s.render());
+        TestResult::from_bool(is_svg_string(svg_wrap))
+    }
+
+    #[derive(Clone, Debug)]
+    enum ShipCommands {
+        Thrust,
+        RotateLeft,
+        RotateRight,
+        Hyperspace,
+    }
+
+    impl Arbitrary for ShipCommands {
+        fn arbitrary(g: &mut Gen) -> Self {
+            let i = u32::arbitrary(g) % 4;
+            match i {
+                0 => ShipCommands::Thrust,
+                1 => ShipCommands::RotateLeft,
+                2 => ShipCommands::RotateRight,
+                3 => ShipCommands::Hyperspace,
+                _ => panic!("Unreachable"),
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn it_stays_in_bounds(
+        w: PositiveFloat,
+        h: PositiveFloat,
+        t: PositiveFloat,
+        cmds: Vec<ShipCommands>,
+    ) -> Result<()> {
+        let mut ship = Ship::create(w.0, h.0);
+        let ctx = GameContext {
+            w: w.0,
+            h: h.0,
+            t: t.0,
+        };
+        ship.update(&ctx);
+        for (i, cmd) in cmds.iter().enumerate() {
+            match cmd {
+                ShipCommands::Thrust => ship.thrust(),
+                ShipCommands::RotateLeft => ship.rotate_left(),
+                ShipCommands::RotateRight => ship.rotate_right(),
+                ShipCommands::Hyperspace => ship.hyperspace(),
+            }
+            ship.update(&ctx);
+            verify_that!(ship.p.x, ge(0.0))
+                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
+            verify_that!(ship.p.y, ge(0.0))
+                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
+            verify_that!(ship.p.x, le(w.0))
+                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
+            verify_that!(ship.p.y, le(h.0))
+                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
+        }
+        Ok(())
+    }
+}

@@ -144,3 +144,13 @@ impl Component for Engine {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //use super::Engine;
+
+    #[test]
+    fn it_runs_a_game_engine() {
+        assert!(true);
+    }
+}

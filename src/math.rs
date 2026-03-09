@@ -18,16 +18,16 @@ pub fn from_polar(r: f32, theta: f32) -> Point {
 impl Point {
     pub fn wrap(&mut self, w: f32, h: f32) {
         self.x = if self.x < 0.0 {
-            w - self.x
+            w - (self.x % w).abs()
         } else if self.x > w {
-            self.x - w
+            self.x % w
         } else {
             self.x
         };
         self.y = if self.y < 0.0 {
-            h - self.y
+            h - (self.y % h).abs()
         } else if self.y > h {
-            self.y - h
+            self.y % h
         } else {
             self.y
         };

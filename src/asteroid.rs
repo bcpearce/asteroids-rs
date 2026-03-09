@@ -92,23 +92,10 @@ impl GameElement for Asteroid {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::tests::PositiveFloat;
     use is_svg::is_svg_string;
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
-
-    #[derive(Clone, Debug)]
-    struct PositiveFloat(f32);
-
-    impl Arbitrary for PositiveFloat {
-        fn arbitrary(g: &mut Gen) -> Self {
-            let f = f32::arbitrary(g);
-            if !f.is_finite() {
-                PositiveFloat::arbitrary(g)
-            } else {
-                PositiveFloat(f.abs())
-            }
-        }
-    }
 
     #[quickcheck]
     fn it_spawns_an_asteroid_in_bounds(w: PositiveFloat, h: PositiveFloat) -> TestResult {

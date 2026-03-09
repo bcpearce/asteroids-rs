@@ -93,6 +93,7 @@ impl GameElement for Asteroid {
 mod tests {
     use super::*;
     use crate::common::tests::PositiveFloat;
+    use googletest::prelude::*;
     use is_svg::is_svg_string;
     use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
@@ -101,6 +102,30 @@ mod tests {
     fn it_spawns_an_asteroid_in_bounds(w: PositiveFloat, h: PositiveFloat) -> TestResult {
         let a = Asteroid::spawn(w.0, h.0);
         TestResult::from_bool(a.p.x <= w.0 && a.p.y <= h.0)
+    }
+
+    #[quickcheck]
+    fn it_stays_in_bounds(
+        w: PositiveFloat,
+        h: PositiveFloat,
+        t: PositiveFloat,
+        iter_count: u32,
+    ) -> Result<()> {
+        let w = w.0;
+        let h = h.0;
+        let t = t.0 % 10000.0;
+        let mut a = Asteroid::spawn(w, h);
+        let ctx = GameContext { w, h, t };
+        let iter_count = iter_count % 5000; // limit to 5000 iterations
+        for i in 0..iter_count {
+            a.update(&ctx);
+            let fail_msg = || format!("Failed on iteration {}", i);
+            verify_that!(a.p.x, ge(0.0)).with_failure_message(fail_msg)?;
+            verify_that!(a.p.y, ge(0.0)).with_failure_message(fail_msg)?;
+            verify_that!(a.p.x, le(w)).with_failure_message(fail_msg)?;
+            verify_that!(a.p.y, le(h)).with_failure_message(fail_msg)?;
+        }
+        Ok(())
     }
 
     #[quickcheck]

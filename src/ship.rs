@@ -55,7 +55,8 @@ impl Ship {
         let mut rng = rand::rng();
         self.p.x = rng.random_range(0.0..=self.w);
         self.p.y = rng.random_range(0.0..=self.h);
-        self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI)
+        self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
+        self.v = Point { x: 0.0, y: 0.0 };
     }
 }
 
@@ -124,12 +125,11 @@ mod tests {
         t: PositiveFloat,
         cmds: Vec<ShipCommands>,
     ) -> Result<()> {
-        let mut ship = Ship::create(w.0, h.0);
-        let ctx = GameContext {
-            w: w.0,
-            h: h.0,
-            t: t.0,
-        };
+        let w = w.0;
+        let h = h.0;
+        let t = t.0 % 10_000.0;
+        let mut ship = Ship::create(w, h);
+        let ctx = GameContext { w, h, t };
         ship.update(&ctx);
         for (i, cmd) in cmds.iter().enumerate() {
             match cmd {
@@ -139,14 +139,11 @@ mod tests {
                 ShipCommands::Hyperspace => ship.hyperspace(),
             }
             ship.update(&ctx);
-            verify_that!(ship.p.x, ge(0.0))
-                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
-            verify_that!(ship.p.y, ge(0.0))
-                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
-            verify_that!(ship.p.x, le(w.0))
-                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
-            verify_that!(ship.p.y, le(h.0))
-                .with_failure_message(|| format!("Failed on command {}: {:?}", i, cmd))?;
+            let fail_msg = || format!("Failed on command {}: {:?}", i, cmd);
+            verify_that!(ship.p.x, ge(0.0)).with_failure_message(fail_msg)?;
+            verify_that!(ship.p.y, ge(0.0)).with_failure_message(fail_msg)?;
+            verify_that!(ship.p.x, le(w)).with_failure_message(fail_msg)?;
+            verify_that!(ship.p.y, le(h)).with_failure_message(fail_msg)?;
         }
         Ok(())
     }

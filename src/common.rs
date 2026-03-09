@@ -31,7 +31,7 @@ pub mod tests {
                 1 => ShipCommand::RotateLeft,
                 2 => ShipCommand::RotateRight,
                 3 => ShipCommand::Hyperspace,
-                _ => panic!("Unreachable"),
+                _ => unreachable!(),
             }
         }
     }

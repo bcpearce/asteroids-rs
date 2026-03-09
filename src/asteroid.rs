@@ -10,7 +10,7 @@ use yew::{Html, html};
 const MIN_ASTEROID_RADIUS: f32 = 3.0;
 const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
-const MAX_ASTEROID_VELOCITY: f32 = 0.2;
+const MAX_ASTEROID_VELOCITY: f32 = 0.11;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Size {

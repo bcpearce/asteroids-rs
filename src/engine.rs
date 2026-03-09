@@ -8,7 +8,9 @@ use yew::{Component, Context, Html, html};
 
 const INTERVAL_DURATION_MILLIS: u32 = 33;
 const WIDTH: u32 = 480;
-const HEIGHT: u32 = 240;
+const HEIGHT: u32 = 480;
+const BASE_DIFFICULTY: u32 = 10;
+const MAX_ASTEROIDS: usize = 10;
 
 pub enum Msg {
     Tick,
@@ -35,9 +37,10 @@ pub struct Engine {
     ship: Ship,
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
-    _interval: Interval,
-    _keydown: EventListener,
-    _keyup: EventListener,
+    difficulty: u32,
+    _interval: Option<Interval>,
+    _keydown: Option<EventListener>,
+    _keyup: Option<EventListener>,
 }
 impl Engine {
     fn get_context(&self) -> GameContext {
@@ -61,6 +64,12 @@ impl Engine {
         self.shots.retain(|s| s.alive());
         self.asteroids.retain(|a| a.alive());
     }
+
+    fn spawn_asteroid(&mut self) {
+        self.asteroids
+            .push(Asteroid::spawn(self.w as f32, self.h as f32));
+        self.difficulty -= 1;
+    }
 }
 impl Component for Engine {
     type Message = Msg;
@@ -73,8 +82,8 @@ impl Component for Engine {
                 link.send_message(Msg::Tick);
             })
         };
+        let window = gloo::utils::window();
         let keydown = {
-            let window = gloo::utils::window();
             let link = ctx.link().clone();
             EventListener::new(&window, "keydown", move |e| {
                 e.prevent_default();
@@ -83,7 +92,6 @@ impl Component for Engine {
             })
         };
         let keyup = {
-            let window = gloo::utils::window();
             let link = ctx.link().clone();
             EventListener::new(&window, "keyup", move |e| {
                 e.prevent_default();
@@ -97,10 +105,11 @@ impl Component for Engine {
             t: INTERVAL_DURATION_MILLIS as f32,
             ship: Ship::create(WIDTH as f32, HEIGHT as f32),
             shots: Vec::new(),
-            asteroids: vec![Asteroid::spawn(WIDTH as f32, HEIGHT as f32)],
-            _interval: interval,
-            _keydown: keydown,
-            _keyup: keyup,
+            asteroids: Vec::new(),
+            difficulty: BASE_DIFFICULTY,
+            _interval: Some(interval),
+            _keydown: Some(keydown),
+            _keyup: Some(keyup),
         }
     }
 
@@ -108,6 +117,9 @@ impl Component for Engine {
         match msg {
             Msg::Tick => {
                 self.handle_loop_update();
+                while self.asteroids.len() < MAX_ASTEROIDS && self.difficulty > 0 {
+                    self.spawn_asteroid();
+                }
                 true
             }
             Msg::Keydown(e) => {
@@ -147,10 +159,27 @@ impl Component for Engine {
 
 #[cfg(test)]
 mod tests {
-    //use super::Engine;
+    use super::*;
+    use quickcheck_macros::quickcheck;
 
-    #[test]
-    fn it_runs_a_game_engine() {
-        assert!(true);
+    #[quickcheck]
+    fn it_runs_a_game_engine(iter_count: u32) {
+        let mut engine = Engine {
+            w: WIDTH,
+            h: HEIGHT,
+            t: INTERVAL_DURATION_MILLIS as f32,
+            ship: Ship::create(WIDTH as f32, HEIGHT as f32),
+            shots: Vec::new(),
+            asteroids: Vec::new(),
+            difficulty: BASE_DIFFICULTY,
+            _interval: None,
+            _keydown: None,
+            _keyup: None,
+        };
+        let iter_count = iter_count % 50_000; // limit to 5000 iterations
+        for _ in 0..iter_count {
+            engine.handle_loop_update();
+        }
+        // Pass if reaches here without panic
     }
 }

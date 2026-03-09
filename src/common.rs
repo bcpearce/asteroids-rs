@@ -14,4 +14,25 @@ pub mod tests {
             }
         }
     }
+
+    #[derive(Clone, Debug)]
+    pub enum ShipCommand {
+        Thrust,
+        RotateLeft,
+        RotateRight,
+        Hyperspace,
+    }
+
+    impl Arbitrary for ShipCommand {
+        fn arbitrary(g: &mut Gen) -> Self {
+            let i = u32::arbitrary(g) % 4;
+            match i {
+                0 => ShipCommand::Thrust,
+                1 => ShipCommand::RotateLeft,
+                2 => ShipCommand::RotateRight,
+                3 => ShipCommand::Hyperspace,
+                _ => panic!("Unreachable"),
+            }
+        }
+    }
 }

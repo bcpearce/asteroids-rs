@@ -84,10 +84,10 @@ impl GameElement for Ship {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::tests::PositiveFloat;
+    use crate::common::tests::{PositiveFloat, ShipCommand};
     use googletest::prelude::*;
     use is_svg::is_svg_string;
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]
@@ -97,33 +97,12 @@ mod tests {
         TestResult::from_bool(is_svg_string(svg_wrap))
     }
 
-    #[derive(Clone, Debug)]
-    enum ShipCommands {
-        Thrust,
-        RotateLeft,
-        RotateRight,
-        Hyperspace,
-    }
-
-    impl Arbitrary for ShipCommands {
-        fn arbitrary(g: &mut Gen) -> Self {
-            let i = u32::arbitrary(g) % 4;
-            match i {
-                0 => ShipCommands::Thrust,
-                1 => ShipCommands::RotateLeft,
-                2 => ShipCommands::RotateRight,
-                3 => ShipCommands::Hyperspace,
-                _ => panic!("Unreachable"),
-            }
-        }
-    }
-
     #[quickcheck]
     fn it_stays_in_bounds(
         w: PositiveFloat,
         h: PositiveFloat,
         t: PositiveFloat,
-        cmds: Vec<ShipCommands>,
+        cmds: Vec<ShipCommand>,
     ) -> Result<()> {
         let w = w.0;
         let h = h.0;
@@ -133,10 +112,10 @@ mod tests {
         ship.update(&ctx);
         for (i, cmd) in cmds.iter().enumerate() {
             match cmd {
-                ShipCommands::Thrust => ship.thrust(),
-                ShipCommands::RotateLeft => ship.rotate_left(),
-                ShipCommands::RotateRight => ship.rotate_right(),
-                ShipCommands::Hyperspace => ship.hyperspace(),
+                ShipCommand::Thrust => ship.thrust(),
+                ShipCommand::RotateLeft => ship.rotate_left(),
+                ShipCommand::RotateRight => ship.rotate_right(),
+                ShipCommand::Hyperspace => ship.hyperspace(),
             }
             ship.update(&ctx);
             let fail_msg = || format!("Failed on command {}: {:?}", i, cmd);

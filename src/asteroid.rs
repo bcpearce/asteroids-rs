@@ -1,13 +1,12 @@
 use crate::{
-    engine::GameContext,
-    engine::GameElement,
-    math::{Point, from_polar},
+    engine::{GameContext, GameElement},
+    math::{Circle, Point, from_polar},
 };
 use itertools::Itertools;
 use rand::RngExt;
 use yew::{Html, html};
 
-const MIN_ASTEROID_RADIUS: f32 = 3.0;
+const MIN_ASTEROID_RADIUS: f32 = 7.0;
 const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
@@ -61,6 +60,24 @@ impl Asteroid {
             sz,
         }
     }
+
+    fn scale(&self) -> f32 {
+        match self.sz {
+            Size::Large => 2.0,
+            Size::Medium => 1.0,
+            Size::Small => 0.55,
+            Size::Destroyed => 0.0,
+        }
+    }
+
+    pub fn score(&self) -> u32 {
+        match self.sz {
+            Size::Large => 10,
+            Size::Medium => 20,
+            Size::Small => 50,
+            Size::Destroyed => 0,
+        }
+    }
 }
 
 impl GameElement for Asteroid {
@@ -73,17 +90,18 @@ impl GameElement for Asteroid {
         self.sz != Size::Destroyed
     }
 
+    fn hitbox(&self) -> Circle {
+        Circle {
+            c: self.p,
+            r: self.scale() * MAX_ASTEROID_RADIUS,
+        }
+    }
+
     fn render(&self) -> Html {
-        let scale = match self.sz {
-            Size::Large => 2.0,
-            Size::Medium => 1.0,
-            Size::Small => 0.55,
-            Size::Destroyed => 0.0,
-        };
         let points = self
             .edge_points
             .iter()
-            .map(|&p| p * scale + self.p)
+            .map(|&p| p * self.scale() + self.p)
             .join(" ");
         html! {<polygon points={points} stroke="white" />}
     }

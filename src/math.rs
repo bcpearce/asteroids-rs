@@ -1,5 +1,5 @@
 use core::fmt;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, BitOr, Mul, MulAssign, Sub, SubAssign};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
@@ -31,6 +31,10 @@ impl Point {
         } else {
             self.y
         };
+    }
+
+    pub fn mag(&self) -> f32 {
+        (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
 }
 
@@ -103,8 +107,22 @@ impl fmt::Display for Point {
         write!(f, "{},{}", self.x, self.y)
     }
 }
+
+pub struct Circle {
+    pub c: Point,
+    pub r: f32,
+}
+
+impl BitOr for Circle {
+    type Output = bool;
+    fn bitor(self, other: Self) -> bool {
+        let dist = (self.c - other.c).mag();
+        dist < self.r + other.r
+    }
+}
+
 #[cfg(test)]
-mod tests {
+mod point_tests {
     use super::*;
     use approx::assert_relative_eq;
 
@@ -149,5 +167,24 @@ mod tests {
         let p1 = from_polar(2.0, std::f32::consts::PI * -0.25);
         assert_relative_eq!(p1.x, 1.41, epsilon = 0.01);
         assert_relative_eq!(p1.y, -1.41, epsilon = 0.01);
+    }
+}
+
+#[cfg(test)]
+mod circle_tests {
+    use super::*;
+    use googletest::prelude::*;
+
+    #[gtest]
+    fn it_finds_intersecting_circles() {
+        let c1 = Circle {
+            c: Point { x: 0.0, y: 0.0 },
+            r: 3.0,
+        };
+        let c2 = Circle {
+            c: Point { x: 1.0, y: 1.0 },
+            r: 0.5,
+        };
+        expect_true!(c1 | c2);
     }
 }

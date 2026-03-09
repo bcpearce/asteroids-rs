@@ -1,8 +1,10 @@
 use crate::{
     engine::{GameContext, GameElement},
-    math::{Point, from_polar},
+    math::{Circle, Point, from_polar},
 };
 use yew::{Html, html};
+
+const SHOT_RADIUS: f32 = 1.0;
 pub struct Shot {
     p: Point,
     v: Point,
@@ -23,10 +25,19 @@ impl GameElement for Shot {
         self.p += self.v * ctx.t;
         self.ttl -= ctx.t;
     }
+
     fn alive(&self) -> bool {
         self.ttl > 0.0
     }
+
+    fn hitbox(&self) -> Circle {
+        Circle {
+            c: self.p,
+            r: SHOT_RADIUS,
+        }
+    }
+
     fn render(&self) -> Html {
-        html! { <circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="1" stroke="white" fill="white"/> }
+        html! { <circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r={SHOT_RADIUS.to_string()} stroke="white" fill="white"/> }
     }
 }

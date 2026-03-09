@@ -1,5 +1,5 @@
 use crate::engine::{GameContext, GameElement};
-use crate::math::{Point, from_polar};
+use crate::math::{Circle, Point, from_polar};
 use crate::shot::Shot;
 use rand::RngExt;
 use yew::{Html, html};
@@ -69,6 +69,13 @@ impl GameElement for Ship {
 
     fn alive(&self) -> bool {
         true
+    }
+
+    fn hitbox(&self) -> Circle {
+        Circle {
+            c: self.p,
+            r: self.sz,
+        }
     }
 
     fn render(&self) -> Html {

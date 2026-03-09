@@ -1,6 +1,6 @@
-use crate::asteroid::Asteroid;
 use crate::ship::Ship;
 use crate::shot::Shot;
+use crate::{asteroid::Asteroid, math::Circle};
 use gloo::events::EventListener;
 use gloo::timers::callback::Interval;
 use web_sys::wasm_bindgen::JsCast;
@@ -27,6 +27,7 @@ pub struct GameContext {
 pub trait GameElement {
     fn update(&mut self, ctx: &GameContext);
     fn alive(&self) -> bool;
+    fn hitbox(&self) -> Circle;
     fn render(&self) -> Html;
 }
 
@@ -38,6 +39,7 @@ pub struct Engine {
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
     difficulty: u32,
+    score: u32,
     _interval: Option<Interval>,
     _keydown: Option<EventListener>,
     _keyup: Option<EventListener>,
@@ -61,6 +63,7 @@ impl Engine {
         for ge in game_elements.iter_mut() {
             ge.update(&ctx);
         }
+        self.handle_collision();
         self.shots.retain(|s| s.alive());
         self.asteroids.retain(|a| a.alive());
     }
@@ -69,6 +72,16 @@ impl Engine {
         self.asteroids
             .push(Asteroid::spawn(self.w as f32, self.h as f32));
         self.difficulty -= 1;
+    }
+
+    fn handle_collision(&mut self) {
+        for shot in self.shots.iter() {
+            for asteroid in self.asteroids.iter() {
+                if shot.hitbox() | asteroid.hitbox() {
+                    self.score += asteroid.score();
+                }
+            }
+        }
     }
 }
 impl Component for Engine {
@@ -107,6 +120,7 @@ impl Component for Engine {
             shots: Vec::new(),
             asteroids: Vec::new(),
             difficulty: BASE_DIFFICULTY,
+            score: 0,
             _interval: Some(interval),
             _keydown: Some(keydown),
             _keyup: Some(keyup),
@@ -146,9 +160,14 @@ impl Component for Engine {
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
         let view_box = format!("0 0 {} {}", self.w, self.h);
-
         html! {
             <svg class="svg-container" viewBox={view_box}>
+                <text
+                    x={(self.w as f32 * 0.1).to_string()}
+                    y={(self.h as f32 * 0.1).to_string()}
+                    fill="#FFFFFF" font-size="20" font-family="Verdana">
+                    {self.score}
+                </text>
                 {self.ship.render()}
                 {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
@@ -172,6 +191,7 @@ mod tests {
             shots: Vec::new(),
             asteroids: Vec::new(),
             difficulty: BASE_DIFFICULTY,
+            score: 0,
             _interval: None,
             _keydown: None,
             _keyup: None,

@@ -10,7 +10,6 @@ jobs:
         uses: ./.github/workflows/build.yml
         with:
             build-config: release
-            coverage: false
             public-url: "/${{ github.event.repository.name }}/"
 
     repackage:

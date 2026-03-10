@@ -12,15 +12,9 @@ jobs:
             fail-fast: false
             matrix:
                 config: [debug, release]
-                include:
-                    - config: debug
-                      coverage: true
-                    - config: release
-                      coverage: false
         uses: ./.github/workflows/build.yml
         with:
             build-config: ${{  matrix.config }}
-            coverage: ${{ matrix.coverage }}
 
     upload-coverage:
         needs: build-and-test

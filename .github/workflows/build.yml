@@ -43,6 +43,12 @@ jobs:
       - name: Test project (Coverage)
         if: ${{ inputs.coverage == 'true' }}
         run: cargo llvm-cov test --lcov --output-path lcov.info
+      - name: Upload coverage report
+        if: ${{ inputs.coverage == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-${{ github.sha }}-${{ inputs.build-config }}
+          path: lcov.info
       - name: Test project
         if: ${{ inputs.coverage == 'false' }}
         run: cargo test

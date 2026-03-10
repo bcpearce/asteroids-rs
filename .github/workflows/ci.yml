@@ -9,6 +9,7 @@ on:
 jobs:
     build-and-test:
         strategy:
+            fail-fast: false
             matrix:
                 config: [debug, release]
                 include:
@@ -20,3 +21,15 @@ jobs:
         with:
             build-config: ${{  matrix.config }}
             coverage: ${{ matrix.coverage }}
+
+    upload-coverage:
+        needs: build-and-test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Download coverage report
+              uses: actions/download-artifact@v4
+              with:
+                  name: coverage-report-${{ github.sha }}-debug
+                  path: lcov.info
+            - name: Upload to Coveralls.io
+              uses: coverallsapp/github-action@v2

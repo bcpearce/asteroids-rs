@@ -1,0 +1,13 @@
+name: Deploy to GitHub Pages
+
+on:
+    push:
+        branches: [main, deployment]
+    workflow_dispatch:
+
+jobs:
+    build-and-test:
+        uses: ./.github/workflows/build.yml
+        with:
+            build-config: release
+            coverage: false

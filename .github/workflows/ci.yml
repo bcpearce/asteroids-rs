@@ -1,4 +1,4 @@
-name: Pull Request
+name: Continuous Integration
 
 on:
     push:
@@ -19,7 +19,7 @@ jobs:
                       coverage: false
         steps:
             - uses: actions/checkout@v6
-            - name: Build and Test (Debug)
+            - name: Build and Test
               uses: ./.github/workflows/build.yml
               with:
                   build-config: ${{  matrix.config }}

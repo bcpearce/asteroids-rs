@@ -1,0 +1,26 @@
+name: Pull Request
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+jobs:
+    pull-requst:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                config: [debug, release]
+                include:
+                    - config: debug
+                      coverage: true
+                    - config: release
+                      coverage: false
+        steps:
+            - uses: actions/checkout@v6
+            - name: Build and Test (Debug)
+              uses: ./.github/workflows/build.yml
+              with:
+                  build-config: ${{  matrix.config }}
+                  coverage: ${{ matrix.coverage }}

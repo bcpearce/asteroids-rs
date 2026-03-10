@@ -1,14 +1,31 @@
 on:
-    - push
-    - pull_request
-    - workflow_dispatch
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
 
 jobs:
     build:
+        strategy:
+            matrix:
+                config: [debug, release]
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
+            - name: Setup Rust Toolchain
+              run: |-
+                  rustup target add wasm32-unknown-unknown
+                  rustup component add llvm-tools
+            - name: Rust Cache
+              uses: Swatinem/rust-cache@v2
             - name: Install trunk
-              run: cargo install --locked trunk
+              run: |-
+                  export PATH="$HOME/.cargo/bin:$PATH"
+                  cargo install wasm-bindgen-cli
+                  cargo install cargo-binstall
+                  cargo binstall --force trunk -y
+                  cargo install cargo-llvm-cov
             - name: Build project
-              run: trunk build
+              run: trunk build --frozen ${{ matrix.config == 'release' && '--release' || '' }}
+            - name: Test project
+              run: cargo llvm-cov test --lcov --output-path lcov.info

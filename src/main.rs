@@ -1,23 +1,20 @@
-mod canvas;
-use canvas::Canvas;
+#![deny(warnings)]
+
+mod asteroid;
+mod common;
+mod engine;
+mod math;
+mod ship;
+mod shot;
+
+use engine::Engine;
 use yew::prelude::*;
 
 #[component]
 fn App() -> Html {
-    let counter = use_state(|| 0);
-    let onclick = {
-        let counter = counter.clone();
-        move |_| {
-            let value = *counter + 2;
-            counter.set(value);
-        }
-    };
-
     html! {
-        <div>
-            <Canvas />
-            <button {onclick}>{ "+2" }</button>
-            <p>{ *counter }</p>
+        <div class="engine-window">
+            <Engine />
         </div>
     }
 }

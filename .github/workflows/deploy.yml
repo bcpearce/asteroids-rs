@@ -11,7 +11,7 @@ jobs:
         with:
             build-config: release
             coverage: false
-            public-url: ${{ github.event.repository.name }}
+            public-url: "/${{ github.event.repository.name }}/"
 
     repackage:
         runs-on: ubuntu-latest

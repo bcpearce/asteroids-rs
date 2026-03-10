@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     engine::{GameContext, GameElement},
     math::{Circle, Point, from_polar},
@@ -10,6 +12,7 @@ const MIN_ASTEROID_RADIUS: f32 = 7.0;
 const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
+const SPLIT_ANGLE_RADS: f32 = 0.3;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Size {
@@ -23,7 +26,7 @@ enum Size {
 pub struct Asteroid {
     p: Point,
     v: Point,
-    edge_points: Vec<Point>,
+    edge_points: Rc<Vec<Point>>,
     sz: Size,
 }
 
@@ -56,7 +59,7 @@ impl Asteroid {
                 rng.random_range(MIN_ASTEROID_VELOCITY..=MAX_ASTEROID_VELOCITY),
                 rng.random_range(0.0..=2.0 * std::f32::consts::PI),
             ),
-            edge_points,
+            edge_points: Rc::new(edge_points),
             sz,
         }
     }
@@ -76,6 +79,41 @@ impl Asteroid {
             Size::Medium => 20,
             Size::Small => 50,
             Size::Destroyed => 0,
+        }
+    }
+
+    pub fn split(&self) -> Option<[Self; 2]> {
+        match self.sz {
+            Size::Large => Some([
+                Asteroid {
+                    p: self.p,
+                    v: self.v.rotate(SPLIT_ANGLE_RADS),
+                    edge_points: self.edge_points.clone(),
+                    sz: Size::Medium,
+                },
+                Asteroid {
+                    p: self.p,
+                    v: self.v.rotate(-SPLIT_ANGLE_RADS),
+                    edge_points: self.edge_points.clone(),
+                    sz: Size::Medium,
+                },
+            ]),
+            Size::Medium => Some([
+                Asteroid {
+                    p: self.p,
+                    v: self.v.rotate(SPLIT_ANGLE_RADS),
+                    edge_points: self.edge_points.clone(),
+                    sz: Size::Small,
+                },
+                Asteroid {
+                    p: self.p,
+                    v: self.v.rotate(-SPLIT_ANGLE_RADS),
+                    edge_points: self.edge_points.clone(),
+                    sz: Size::Small,
+                },
+            ]),
+            Size::Small => None,
+            Size::Destroyed => None,
         }
     }
 }

@@ -5,14 +5,17 @@ use crate::{
 use yew::{Html, html};
 
 const SHOT_RADIUS: f32 = 1.0;
+const BASE_SHOT_VELOCITY: f32 = 0.125;
+
+#[derive(Debug, Copy, Clone)]
 pub struct Shot {
     p: Point,
     v: Point,
     ttl: f32,
 }
 impl Shot {
-    pub fn create(loc: Point, theta_rad: f32) -> Self {
-        let v = from_polar(0.1, theta_rad);
+    pub fn create(loc: Point, shooter_v: Point, theta_rad: f32) -> Self {
+        let v = from_polar(BASE_SHOT_VELOCITY, theta_rad) + shooter_v;
         Shot {
             p: loc,
             v,

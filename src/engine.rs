@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::ship::Ship;
 use crate::shot::Shot;
 use crate::{asteroid::Asteroid, math::Circle};
@@ -75,15 +77,33 @@ impl Engine {
     }
 
     fn handle_collision(&mut self) {
-        for shot in self.shots.iter() {
-            for asteroid in self.asteroids.iter() {
+        let mut shot_indexes_used: HashSet<usize> = HashSet::new();
+        for (shot_index, shot) in self.shots.iter().enumerate() {
+            let mut maybe_hit_index: Option<usize> = None;
+            for (i, asteroid) in self.asteroids.iter().enumerate() {
                 if shot.hitbox() | asteroid.hitbox() {
                     self.score += asteroid.score();
+                    maybe_hit_index = Some(i);
+                    shot_indexes_used.insert(shot_index);
+                    break;
                 }
             }
+            if let Some(hit_index) = maybe_hit_index {
+                let maybe_new_asteroids = self.asteroids[hit_index].split();
+                if let Some(new_asteroids) = maybe_new_asteroids {
+                    self.asteroids.extend(new_asteroids);
+                }
+                // Remove destroyed or split
+                self.asteroids.swap_remove(hit_index);
+            }
+        }
+        // Clear used-up shots
+        for index in shot_indexes_used {
+            self.shots.swap_remove(index);
         }
     }
 }
+
 impl Component for Engine {
     type Message = Msg;
     type Properties = ();
@@ -142,7 +162,12 @@ impl Component for Engine {
                     "a" | "A" => self.ship.rotate_left(),
                     "d" | "D" => self.ship.rotate_right(),
                     "." | ">" | "+" => self.ship.hyperspace(),
-                    "Spacebar" | " " => self.shots.push(self.ship.shoot()),
+                    "Spacebar" | " " => {
+                        let maybe_shot = self.ship.shoot();
+                        if let Some(shot) = maybe_shot {
+                            self.shots.push(shot)
+                        }
+                    }
                     _ => (),
                 }
                 false
@@ -181,9 +206,8 @@ mod tests {
     use super::*;
     use quickcheck_macros::quickcheck;
 
-    #[quickcheck]
-    fn it_runs_a_game_engine(iter_count: u32) {
-        let mut engine = Engine {
+    fn create_test_engine() -> Engine {
+        Engine {
             w: WIDTH,
             h: HEIGHT,
             t: INTERVAL_DURATION_MILLIS as f32,
@@ -195,7 +219,12 @@ mod tests {
             _interval: None,
             _keydown: None,
             _keyup: None,
-        };
+        }
+    }
+
+    #[quickcheck]
+    fn it_runs_a_game_engine(iter_count: u32) {
+        let mut engine = create_test_engine();
         let iter_count = iter_count % 50_000; // limit to 5000 iterations
         for _ in 0..iter_count {
             engine.handle_loop_update();

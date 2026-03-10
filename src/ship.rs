@@ -4,6 +4,7 @@ use crate::shot::Shot;
 use rand::RngExt;
 use yew::{Html, html};
 
+const BASE_SHOT_COOLDOWN_MS: f32 = 150.0;
 pub struct Ship {
     p: Point,
     v: Point,
@@ -12,6 +13,7 @@ pub struct Ship {
     sz: f32,
     w: f32,
     h: f32,
+    shot_cooldown: f32,
 }
 impl Ship {
     pub fn create(w: f32, h: f32) -> Ship {
@@ -26,6 +28,7 @@ impl Ship {
             sz: 10.0,
             w,
             h,
+            shot_cooldown: 0.0,
         }
     }
 
@@ -47,8 +50,13 @@ impl Ship {
         self.omega_rad = 0.0;
     }
 
-    pub fn shoot(&self) -> Shot {
-        Shot::create(self.p, self.theta_rad)
+    pub fn shoot(&mut self) -> Option<Shot> {
+        if self.shot_cooldown > 0.0 {
+            None
+        } else {
+            self.shot_cooldown = BASE_SHOT_COOLDOWN_MS;
+            Some(Shot::create(self.p, self.v, self.theta_rad))
+        }
     }
 
     pub fn hyperspace(&mut self) {
@@ -65,6 +73,7 @@ impl GameElement for Ship {
         self.theta_rad += self.omega_rad * ctx.t;
         self.p += self.v * ctx.t;
         self.p.wrap(ctx.w, ctx.h);
+        self.shot_cooldown -= ctx.t;
     }
 
     fn alive(&self) -> bool {
@@ -90,6 +99,7 @@ impl GameElement for Ship {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::common::tests::{PositiveFloat, ShipCommand};
     use googletest::prelude::*;
@@ -132,5 +142,38 @@ mod tests {
             verify_that!(ship.p.y, le(h)).with_failure_message(fail_msg)?;
         }
         Ok(())
+    }
+
+    #[gtest]
+    fn it_creates_a_shot_if_the_cooldown_elapsed() {
+        let w = 500.0;
+        let h = 500.0;
+        let t = 50.0;
+        let mut ship = Ship::create(w, h);
+        let ctx = GameContext { w, h, t };
+        ship.update(&ctx);
+        expect_that!(
+            ship.shoot(),
+            some(anything()),
+            "should start not in cooldown"
+        );
+        // Cooldown starts
+        let iters_required = BASE_SHOT_COOLDOWN_MS / t;
+        for i in 0..(iters_required.ceil() as u32) {
+            expect_that!(
+                ship.shoot(),
+                none(),
+                "should not create shot cooldown is active, elapsed={}, updates={}",
+                t * i as f32,
+                i
+            );
+            ship.update(&ctx);
+        }
+        // Cooldown ends
+        expect_that!(
+            ship.shoot(),
+            some(anything()),
+            "should create shot when cooldown ends"
+        );
     }
 }

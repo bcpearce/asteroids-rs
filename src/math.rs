@@ -36,6 +36,14 @@ impl Point {
     pub fn mag(&self) -> f32 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
+
+    pub fn rotate(&self, theta_rad: f32) -> Point {
+        let (sin, cos) = theta_rad.sin_cos();
+        Point {
+            x: self.x * cos - self.y * sin,
+            y: self.x * sin + self.y * cos,
+        }
+    }
 }
 
 impl Add for Point {

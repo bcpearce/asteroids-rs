@@ -15,7 +15,7 @@ on:
         description: "Run tests with coverage"
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -44,4 +44,5 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
+          name: build-${{ github.sha }}-${{ inputs.build-config }}
           path: dist/

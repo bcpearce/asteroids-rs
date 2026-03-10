@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::ship::Ship;
 use crate::shot::Shot;
 use crate::{asteroid::Asteroid, math::Circle};
@@ -77,14 +75,14 @@ impl Engine {
     }
 
     fn handle_collision(&mut self) {
-        let mut shot_indexes_used: HashSet<usize> = HashSet::new();
+        let mut shot_indexes_used: Vec<usize> = Vec::new();
         for (shot_index, shot) in self.shots.iter().enumerate() {
             let mut maybe_hit_index: Option<usize> = None;
             for (i, asteroid) in self.asteroids.iter().enumerate() {
                 if shot.hitbox() | asteroid.hitbox() {
                     self.score += asteroid.score();
                     maybe_hit_index = Some(i);
-                    shot_indexes_used.insert(shot_index);
+                    shot_indexes_used.push(shot_index);
                     break;
                 }
             }
@@ -98,8 +96,15 @@ impl Engine {
             }
         }
         // Clear used-up shots
-        for index in shot_indexes_used {
-            self.shots.swap_remove(index);
+        for index in shot_indexes_used.iter().rev() {
+            self.shots.swap_remove(*index);
+        }
+    }
+
+    fn add_shot(&mut self) {
+        let maybe_shot = self.ship.shoot();
+        if let Some(shot) = maybe_shot {
+            self.shots.push(shot)
         }
     }
 }
@@ -162,12 +167,7 @@ impl Component for Engine {
                     "a" | "A" => self.ship.rotate_left(),
                     "d" | "D" => self.ship.rotate_right(),
                     "." | ">" | "+" => self.ship.hyperspace(),
-                    "Spacebar" | " " => {
-                        let maybe_shot = self.ship.shoot();
-                        if let Some(shot) = maybe_shot {
-                            self.shots.push(shot)
-                        }
-                    }
+                    "Spacebar" | " " => self.add_shot(),
                     _ => (),
                 }
                 false
@@ -203,10 +203,16 @@ impl Component for Engine {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use crate::asteroid::Size as AsteroidSize;
+    use crate::common::tests::{GameLoopActions, ShipCommand};
+
     use super::*;
+    use googletest::prelude::*;
     use quickcheck_macros::quickcheck;
 
-    fn create_test_engine() -> Engine {
+    fn create_test_engine(difficulty: u32) -> Engine {
         Engine {
             w: WIDTH,
             h: HEIGHT,
@@ -214,7 +220,7 @@ mod tests {
             ship: Ship::create(WIDTH as f32, HEIGHT as f32),
             shots: Vec::new(),
             asteroids: Vec::new(),
-            difficulty: BASE_DIFFICULTY,
+            difficulty,
             score: 0,
             _interval: None,
             _keydown: None,
@@ -222,12 +228,71 @@ mod tests {
         }
     }
 
+    fn count_asteroids(asteroids: &[Asteroid]) -> HashMap<AsteroidSize, u32> {
+        let mut counts: HashMap<AsteroidSize, u32> = HashMap::new();
+        for a in asteroids.iter() {
+            *counts.entry(a.sz).or_insert(0) += 1;
+        }
+        counts
+    }
+
     #[quickcheck]
-    fn it_runs_a_game_engine(iter_count: u32) {
-        let mut engine = create_test_engine();
-        let iter_count = iter_count % 50_000; // limit to 5000 iterations
-        for _ in 0..iter_count {
+    fn it_runs_a_game_engine(actions: GameLoopActions, difficulty: u32) {
+        let mut engine = create_test_engine(difficulty % 500);
+        for _ in 0..(difficulty % 50) {
+            engine.spawn_asteroid();
+        }
+        for action in actions.0 {
+            match action {
+                ShipCommand::Thrust => engine.ship.thrust(),
+                ShipCommand::RotateLeft => engine.ship.rotate_left(),
+                ShipCommand::RotateRight => engine.ship.rotate_right(),
+                ShipCommand::Hyperspace => engine.ship.hyperspace(),
+                ShipCommand::Shoot => engine.add_shot(),
+                ShipCommand::NoOp => (),
+            };
+
+            let score_before_loop = engine.score;
+            let shots_before_loop = engine.shots.len();
+            let asteroids_before_loop = count_asteroids(&engine.asteroids);
+
             engine.handle_loop_update();
+
+            let score_after_loop = engine.score;
+            let shots_after_loop = engine.shots.len();
+            let asteroids_after_loop = count_asteroids(&engine.asteroids);
+
+            if score_after_loop > score_before_loop {
+                assert_that!(
+                    shots_after_loop,
+                    lt(shots_before_loop),
+                    "if the score went up, a shot must have contacted a target"
+                );
+            }
+
+            let destroyed_large_asteroids = asteroids_before_loop
+                .get(&AsteroidSize::Large)
+                .unwrap_or(&0)
+                - asteroids_after_loop.get(&AsteroidSize::Large).unwrap_or(&0);
+            let score_from_large_asteroids =
+                destroyed_large_asteroids * Asteroid::score_from_size(AsteroidSize::Large);
+
+            assert_that!(
+                score_after_loop,
+                ge(score_before_loop + score_from_large_asteroids),
+                "score must go up by at least {} for destroying {} large asteroids",
+                score_from_large_asteroids,
+                destroyed_large_asteroids
+            );
+
+            // assert_that!(
+            //     asteroids_before_loop
+            //         .get(&AsteroidSize::Medium)
+            //         .unwrap_or(&0),
+            //     ge(asteroids_after_loop
+            //         .get(&AsteroidSize::Medium)
+            //         .unwrap_or(&0))
+            // )
         }
         // Pass if reaches here without panic
     }

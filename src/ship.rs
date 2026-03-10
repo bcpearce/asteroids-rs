@@ -133,7 +133,12 @@ mod tests {
                 ShipCommand::RotateLeft => ship.rotate_left(),
                 ShipCommand::RotateRight => ship.rotate_right(),
                 ShipCommand::Hyperspace => ship.hyperspace(),
-            }
+                ShipCommand::Shoot => {
+                    ship.shoot();
+                    ()
+                }
+                ShipCommand::NoOp => (),
+            };
             ship.update(&ctx);
             let fail_msg = || format!("Failed on command {}: {:?}", i, cmd);
             verify_that!(ship.p.x, ge(0.0)).with_failure_message(fail_msg)?;

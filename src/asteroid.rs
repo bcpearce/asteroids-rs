@@ -14,8 +14,8 @@ const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
 const SPLIT_ANGLE_RADS: f32 = 0.3;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum Size {
+#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+pub enum Size {
     Small,
     Medium,
     Large,
@@ -27,7 +27,7 @@ pub struct Asteroid {
     p: Point,
     v: Point,
     edge_points: Rc<Vec<Point>>,
-    sz: Size,
+    pub sz: Size,
 }
 
 impl Asteroid {
@@ -73,13 +73,17 @@ impl Asteroid {
         }
     }
 
-    pub fn score(&self) -> u32 {
-        match self.sz {
+    pub fn score_from_size(sz: Size) -> u32 {
+        match sz {
             Size::Large => 10,
             Size::Medium => 20,
             Size::Small => 50,
             Size::Destroyed => 0,
         }
+    }
+
+    pub fn score(&self) -> u32 {
+        Self::score_from_size(self.sz)
     }
 
     pub fn split(&self) -> Option<[Self; 2]> {

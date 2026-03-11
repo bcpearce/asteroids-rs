@@ -1,3 +1,4 @@
+use crate::common::rng::get_rng;
 use crate::engine::{GameContext, GameElement};
 use crate::math::{Circle, Point, from_polar};
 use crate::shot::Shot;
@@ -14,9 +15,10 @@ pub struct Ship {
     w: f32,
     h: f32,
     shot_cooldown: f32,
+    maybe_seed: Option<u64>,
 }
 impl Ship {
-    pub fn create(w: f32, h: f32) -> Ship {
+    pub fn create(w: f32, h: f32, maybe_seed: Option<u64>) -> Ship {
         Ship {
             p: Point {
                 x: w / 2.0,
@@ -29,6 +31,7 @@ impl Ship {
             w,
             h,
             shot_cooldown: 0.0,
+            maybe_seed,
         }
     }
 
@@ -60,7 +63,7 @@ impl Ship {
     }
 
     pub fn hyperspace(&mut self) {
-        let mut rng = rand::rng();
+        let mut rng = get_rng(self.maybe_seed);
         self.p.x = rng.random_range(0.0..=self.w);
         self.p.y = rng.random_range(0.0..=self.h);
         self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
@@ -108,8 +111,8 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]
-    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let s = Ship::create(w.0, h.0);
+    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
+        let s = Ship::create(w.0, h.0, Some(seed));
         let svg_wrap = format!("<svg>{:?}</svg>", s.render());
         TestResult::from_bool(is_svg_string(svg_wrap))
     }
@@ -120,11 +123,12 @@ mod tests {
         h: PositiveFloat,
         t: PositiveFloat,
         cmds: Vec<ShipCommand>,
+        seed: u64,
     ) -> Result<()> {
         let w = w.0;
         let h = h.0;
         let t = t.0 % 10_000.0;
-        let mut ship = Ship::create(w, h);
+        let mut ship = Ship::create(w, h, Some(seed));
         let ctx = GameContext { w, h, t };
         ship.update(&ctx);
         for (i, cmd) in cmds.iter().enumerate() {
@@ -154,7 +158,7 @@ mod tests {
         let w = 500.0;
         let h = 500.0;
         let t = 50.0;
-        let mut ship = Ship::create(w, h);
+        let mut ship = Ship::create(w, h, Some(0));
         let ctx = GameContext { w, h, t };
         ship.update(&ctx);
         expect_that!(

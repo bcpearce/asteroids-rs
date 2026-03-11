@@ -1,3 +1,14 @@
+pub mod rng {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    pub fn get_rng(seed: Option<u64>) -> impl Rng {
+        match seed {
+            Some(s) => StdRng::seed_from_u64(s), // Reproducible
+            None => StdRng::seed_from_u64(rand::rng().next_u64()), // Random
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use quickcheck::{Arbitrary, Gen};
@@ -42,20 +53,6 @@ pub mod tests {
                 9 => ShipCommand::Shoot,
                 _ => ShipCommand::NoOp,
             }
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    pub struct GameLoopActions(pub Vec<ShipCommand>);
-
-    impl Arbitrary for GameLoopActions {
-        fn arbitrary(g: &mut Gen) -> Self {
-            let size = usize::arbitrary(g) % 200000;
-            let mut vec = Vec::with_capacity(size);
-            for _ in 0..size {
-                vec.push(ShipCommand::arbitrary(g));
-            }
-            GameLoopActions(vec)
         }
     }
 }

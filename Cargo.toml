@@ -8,12 +8,15 @@ approx = "0.5.1"
 gloo = "0.11.0"
 itertools = "0.14.0"
 rand = "0.10.0"
+strum = "0.28.0"
+strum_macros = "0.28.0"
 web-sys = "0.3.91"
 yew = { version = "0.22.1", features = ["csr"] }
 
 [dev-dependencies]
 cargo-llvm-cov = "0.8.4"
 googletest = "0.14.2"
+indoc = "2.0.7"
 is-svg = "0.2.2"
 quickcheck = "1.1.0"
 quickcheck_macros = "1.2.0"

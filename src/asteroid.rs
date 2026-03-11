@@ -1,6 +1,8 @@
 use std::rc::Rc;
+use strum_macros::EnumIter;
 
 use crate::{
+    common,
     engine::{GameContext, GameElement},
     math::{Circle, Point, from_polar},
 };
@@ -14,7 +16,7 @@ const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
 const SPLIT_ANGLE_RADS: f32 = 0.3;
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq, EnumIter)]
 pub enum Size {
     Small,
     Medium,
@@ -31,8 +33,8 @@ pub struct Asteroid {
 }
 
 impl Asteroid {
-    pub fn spawn(w: f32, h: f32) -> Asteroid {
-        let mut rng = rand::rng();
+    pub fn spawn(w: f32, h: f32, maybe_seed: Option<u64>) -> Asteroid {
+        let mut rng = common::rng::get_rng(maybe_seed);
         let max_angle_rads = std::f32::consts::PI / 3.0; // 6 side ish
         let min_angle_rads = std::f32::consts::PI / 5.5; // 11 side ish
         let mut edge_points = Vec::new();
@@ -73,7 +75,7 @@ impl Asteroid {
         }
     }
 
-    pub fn score_from_size(sz: Size) -> u32 {
+    pub fn score_from_size(sz: &Size) -> i32 {
         match sz {
             Size::Large => 10,
             Size::Medium => 20,
@@ -82,8 +84,8 @@ impl Asteroid {
         }
     }
 
-    pub fn score(&self) -> u32 {
-        Self::score_from_size(self.sz)
+    pub fn score(&self) -> i32 {
+        Self::score_from_size(&self.sz)
     }
 
     pub fn split(&self) -> Option<[Self; 2]> {
@@ -159,8 +161,12 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]
-    fn it_spawns_an_asteroid_in_bounds(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0);
+    fn it_spawns_an_asteroid_in_bounds(
+        w: PositiveFloat,
+        h: PositiveFloat,
+        seed: u64,
+    ) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0, Some(seed));
         TestResult::from_bool(a.p.x <= w.0 && a.p.y <= h.0)
     }
 
@@ -170,11 +176,12 @@ mod tests {
         h: PositiveFloat,
         t: PositiveFloat,
         iter_count: u32,
+        seed: u64,
     ) -> Result<()> {
         let w = w.0;
         let h = h.0;
         let t = t.0 % 10_000.0;
-        let mut a = Asteroid::spawn(w, h);
+        let mut a = Asteroid::spawn(w, h, Some(seed));
         let ctx = GameContext { w, h, t };
         let iter_count = iter_count % 5000; // limit to 5000 iterations
         for i in 0..iter_count {
@@ -189,14 +196,14 @@ mod tests {
     }
 
     #[quickcheck]
-    fn it_is_a_polygon(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0);
+    fn it_is_a_polygon(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0, Some(seed));
         TestResult::from_bool(a.edge_points.len() >= 3)
     }
 
     #[quickcheck]
-    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0);
+    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0, Some(seed));
         let svg_wrap = format!("<svg>{:?}</svg>", a.render());
         TestResult::from_bool(is_svg_string(svg_wrap))
     }

@@ -38,10 +38,14 @@ impl Point {
     }
 
     pub fn rotate(&self, theta_rad: f32) -> Point {
-        let (sin, cos) = theta_rad.sin_cos();
-        Point {
-            x: self.x * cos - self.y * sin,
-            y: self.x * sin + self.y * cos,
+        if theta_rad.is_normal() {
+            let (sin, cos) = theta_rad.sin_cos();
+            Point {
+                x: self.x * cos - self.y * sin,
+                y: self.x * sin + self.y * cos,
+            }
+        } else {
+            *self
         }
     }
 }
@@ -132,49 +136,81 @@ impl BitOr for Circle {
 #[cfg(test)]
 mod point_tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use googletest::prelude::*;
+    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck_macros::quickcheck;
 
-    #[test]
+    #[gtest]
     fn it_adds() {
         let p1 = Point { x: 1.0, y: 5.0 };
         let p2 = Point { x: 2.5, y: 4.2 };
         let p3 = p1 + p2;
-        assert_relative_eq!(p3.x, 3.5);
-        assert_relative_eq!(p3.y, 9.2);
+        expect_that!(p3.x, near(3.5, 1e-6));
+        expect_that!(p3.y, near(9.2, 1e-6));
     }
 
-    #[test]
+    #[gtest]
     fn it_add_assigns() {
         let mut p1 = Point { x: 1.0, y: 5.0 };
         let p2 = Point { x: 2.5, y: 4.2 };
         p1 += p2;
-        assert_relative_eq!(p1.x, 3.5);
-        assert_relative_eq!(p1.y, 9.2);
+        expect_that!(p1.x, near(3.5, 1e-6));
+        expect_that!(p1.y, near(9.2, 1e-6));
     }
 
-    #[test]
+    #[gtest]
     fn it_muls() {
         let p1 = Point { x: 1.0, y: 5.0 } * 3.0;
-        assert_relative_eq!(p1.x, 3.0);
-        assert_relative_eq!(p1.y, 15.0);
+        expect_that!(p1.x, near(3.0, 1e-6));
+        expect_that!(p1.y, near(15.0, 1e-6));
     }
 
-    #[test]
+    #[gtest]
     fn it_mul_assigns() {
         let mut p1 = Point { x: 1.0, y: 5.0 };
         p1 *= 3.0;
-        assert_relative_eq!(p1.x, 3.0);
-        assert_relative_eq!(p1.y, 15.0);
+        expect_that!(p1.x, near(3.0, 1e-6));
+        expect_that!(p1.y, near(15.0, 1e-6));
     }
 
-    #[test]
+    #[gtest]
     fn it_converts_from_polar() {
         let p1 = from_polar(2.0, std::f32::consts::PI * 0.5);
-        assert_relative_eq!(p1.x, 0.0);
-        assert_relative_eq!(p1.y, 2.0);
+        expect_that!(p1.x, near(0.0, 1e-6));
+        expect_that!(p1.y, near(2.0, 1e-6));
         let p1 = from_polar(2.0, std::f32::consts::PI * -0.25);
-        assert_relative_eq!(p1.x, 1.41, epsilon = 0.01);
-        assert_relative_eq!(p1.y, -1.41, epsilon = 0.01);
+        expect_that!(p1.x, near(1.41421356237, 1e-6));
+        expect_that!(p1.y, near(-1.41421356237, 1e-6));
+    }
+
+    impl Arbitrary for Point {
+        fn arbitrary(g: &mut Gen) -> Self {
+            Point {
+                x: f32::arbitrary(g),
+                y: f32::arbitrary(g),
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn it_keeps_the_same_magnitude_on_rotation(p: Point, theta_rad: f32) -> TestResult {
+        if p.x.is_finite()
+            && p.y.is_finite()
+            && theta_rad.is_finite()
+            && p.x.abs() < 1e18
+            && p.y.abs() < 1e18
+        {
+            let actual = p.mag();
+            let expected = p.rotate(theta_rad).mag();
+            if actual - expected < 1e-6 {
+                return TestResult::passed();
+            }
+            let relative_error = ((actual - expected) / expected).abs();
+            assert_that!(relative_error, lt(1e-6));
+            TestResult::passed()
+        } else {
+            TestResult::discard()
+        }
     }
 }
 

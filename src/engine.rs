@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ship::Ship;
 use crate::shot::Shot;
 use crate::{asteroid::Asteroid, math::Circle};
@@ -6,7 +8,7 @@ use gloo::timers::callback::Interval;
 use web_sys::wasm_bindgen::JsCast;
 use yew::{Component, Context, Html, html};
 
-const INTERVAL_DURATION_MILLIS: u32 = 33;
+const INTERVAL_DURATION_MILLIS: u32 = 10;
 const WIDTH: u32 = 480;
 const HEIGHT: u32 = 480;
 const BASE_DIFFICULTY: u32 = 10;
@@ -31,6 +33,7 @@ pub trait GameElement {
     fn render(&self) -> Html;
 }
 
+type KeyMap = HashMap<String, bool>;
 pub struct Engine {
     pub w: u32,
     pub h: u32,
@@ -41,6 +44,7 @@ pub struct Engine {
     difficulty: u32,
     score: i32,
     maybe_seed: Option<u64>,
+    keymap: KeyMap,
     _interval: Option<Interval>,
     _keydown: Option<EventListener>,
     _keyup: Option<EventListener>,
@@ -111,6 +115,28 @@ impl Engine {
             self.shots.push(shot)
         }
     }
+
+    fn handle_keydown(&mut self, key: &str) {
+        match key {
+            "w" | "W" => self.ship.thrust(),
+            "a" | "A" => self.ship.rotate_left(),
+            "d" | "D" => self.ship.rotate_right(),
+            "." | ">" | "+" => self.ship.hyperspace(),
+            "Spacebar" | " " => self.add_shot(),
+            _ => {
+                self.keymap.insert(String::from(key), true);
+            }
+        }
+    }
+
+    fn handle_keyup(&mut self, key: &str) {
+        match key {
+            "a" | "A" | "d" | "D" => self.ship.stop_rotate(),
+            _ => {
+                self.keymap.insert(String::from(key), false);
+            }
+        }
+    }
 }
 
 impl Component for Engine {
@@ -151,6 +177,7 @@ impl Component for Engine {
             difficulty: BASE_DIFFICULTY,
             score: 0,
             maybe_seed: None,
+            keymap: HashMap::new(),
             _interval: Some(interval),
             _keydown: Some(keydown),
             _keyup: Some(keyup),
@@ -167,22 +194,11 @@ impl Component for Engine {
                 true
             }
             Msg::Keydown(e) => {
-                match e.key().as_str() {
-                    "w" | "W" => self.ship.thrust(),
-                    "a" | "A" => self.ship.rotate_left(),
-                    "d" | "D" => self.ship.rotate_right(),
-                    "." | ">" | "+" => self.ship.hyperspace(),
-                    "Spacebar" | " " => self.add_shot(),
-                    _ => (),
-                }
+                self.handle_keydown(e.key().as_str());
                 false
             }
             Msg::Keyup(e) => {
-                match e.key().as_str() {
-                    "a" | "A" => self.ship.stop_rotate(),
-                    "d" | "D" => self.ship.stop_rotate(),
-                    _ => (),
-                }
+                self.handle_keyup(e.key().as_str());
                 false
             }
         }
@@ -195,7 +211,7 @@ impl Component for Engine {
                 <text
                     x={(self.w as f32 * 0.1).to_string()}
                     y={(self.h as f32 * 0.1).to_string()}
-                    fill="#FFFFFF" font-size="20" font-family="Verdana">
+                    fill="#FFFFFF" font-size="20" font-family="monospace">
                     {self.score}
                 </text>
                 {self.ship.render()}
@@ -230,6 +246,7 @@ mod tests {
             difficulty,
             score: 0,
             maybe_seed: Some(engine_seed),
+            keymap: HashMap::new(),
             _interval: None,
             _keydown: None,
             _keyup: None,

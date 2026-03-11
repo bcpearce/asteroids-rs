@@ -1,0 +1,30 @@
+name: Continuous Integration
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+jobs:
+    build-and-test:
+        strategy:
+            fail-fast: false
+            matrix:
+                config: [debug, release]
+        uses: ./.github/workflows/build.yml
+        with:
+            build-config: ${{  matrix.config }}
+
+    upload-coverage:
+        needs: build-and-test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v6
+            - name: Download coverage report
+              uses: actions/download-artifact@v4
+              with:
+                  name: coverage-report-${{ github.sha }}-debug
+            - name: Upload to Coveralls.io
+              uses: coverallsapp/github-action@v2

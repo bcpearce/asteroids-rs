@@ -1,31 +1,50 @@
+name: Build and Test
+
 on:
-    push:
-        branches: [main]
-    pull_request:
-    workflow_dispatch:
+  workflow_call:
+    inputs:
+      build-config:
+        required: true
+        type: string
+        default: release
+        description: "Build configuration [debug, release]"
+      public-url:
+        required: false
+        type: string
+        default: "/"
+        description: "Public URL to serve the App"
 
 jobs:
-    build:
-        strategy:
-            matrix:
-                config: [debug, release]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v6
-            - name: Setup Rust Toolchain
-              run: |-
-                  rustup target add wasm32-unknown-unknown
-                  rustup component add llvm-tools
-            - name: Rust Cache
-              uses: Swatinem/rust-cache@v2
-            - name: Install trunk
-              run: |-
-                  export PATH="$HOME/.cargo/bin:$PATH"
-                  cargo install wasm-bindgen-cli
-                  cargo install cargo-binstall
-                  cargo binstall --force trunk -y
-                  cargo install cargo-llvm-cov
-            - name: Build project
-              run: trunk build --frozen ${{ matrix.config == 'release' && '--release' || '' }}
-            - name: Test project
-              run: cargo llvm-cov test --lcov --output-path lcov.info
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Setup Rust Toolchain
+        run: |-
+          rustup target add wasm32-unknown-unknown
+          rustup component add llvm-tools
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install trunk
+        run: |-
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install wasm-bindgen-cli
+          cargo install cargo-binstall
+          cargo binstall --force trunk -y
+          cargo install cargo-llvm-cov
+      - name: Build project
+        run: trunk build --public-url ${{ inputs.public-url }} --frozen ${{ inputs.build-config == 'release' && '--release' || '' }}
+      - name: Test project (Coverage)
+        run: cargo llvm-cov test --lcov --output-path lcov.info
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-${{ github.sha }}-${{ inputs.build-config }}
+          path: lcov.info
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ github.sha }}-${{ inputs.build-config }}
+          path: dist/

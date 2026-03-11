@@ -1,5 +1,7 @@
 /target/
-/dist/
+/dist/*
+!/dist/.gitattributes
+
 **/*.rs.bk
 .cache
 custom_config.toml

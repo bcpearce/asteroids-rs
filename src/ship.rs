@@ -105,7 +105,14 @@ impl GameElement for Ship {
         let points = format!("{} {} {}", p1, p2, p3);
 
         if self.is_destroyed {
-            html! { <circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.01" /> }
+            html! { <text x={(self.w / 2.0).to_string()} y={(self.h / 2.0).to_string()}
+            text-anchor="middle"
+            dominant-baseline="middle"
+            fill="#FF0000"
+            font-size="20"
+            font-family="monospace">
+                {"Game Over"}
+            </text> }
         } else {
             html! { <polygon points={points} stroke="white" /> }
         }

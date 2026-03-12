@@ -226,13 +226,13 @@ impl Component for Engine {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::asteroid::Size as AsteroidSize;
-    use crate::common::tests::ShipCommand;
+    use crate::{asteroid::Size as AsteroidSize, common::tests::KeyAction};
 
     use super::*;
+    use crate::common::tests::GameKeyInput;
     use googletest::prelude::*;
     use indoc::indoc;
-    use quickcheck_macros::quickcheck;
+    use quickcheck::{Gen, QuickCheck};
     use strum::IntoEnumIterator;
 
     fn create_test_engine(difficulty: u32, engine_seed: u64, ship_seed: u64) -> Engine {
@@ -253,107 +253,113 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    fn it_keeps_score_as_engine_runs(
-        actions: Vec<ShipCommand>,
-        difficulty: u32,
-        engine_seed: u64,
-        ship_seed: u64,
-    ) {
-        let mut engine = create_test_engine(difficulty % 500, engine_seed, ship_seed);
-        for _ in 0..(difficulty % 50) {
-            engine.spawn_asteroid();
-        }
-        for action in actions {
-            match action {
-                ShipCommand::Thrust => engine.ship.thrust(),
-                ShipCommand::RotateLeft => engine.ship.rotate_left(),
-                ShipCommand::RotateRight => engine.ship.rotate_right(),
-                ShipCommand::Hyperspace => engine.ship.hyperspace(),
-                ShipCommand::Shoot => engine.add_shot(),
-                ShipCommand::NoOp => (),
-            };
-
-            struct AsteroidMap(HashMap<AsteroidSize, i32>);
-            impl AsteroidMap {
-                fn create() -> AsteroidMap {
-                    let mut res: AsteroidMap = AsteroidMap(HashMap::new());
-                    for sz in AsteroidSize::iter() {
-                        res.0.insert(sz, 0);
+    #[gtest]
+    fn it_keeps_score_as_engine_runs() {
+        fn run_engine(
+            actions: Vec<GameKeyInput>,
+            difficulty: u32,
+            engine_seed: u64,
+            ship_seed: u64,
+        ) -> bool {
+            let mut engine = create_test_engine(difficulty % 500, engine_seed, ship_seed);
+            for _ in 0..(difficulty % 50) {
+                engine.spawn_asteroid();
+            }
+            for game_key_input in actions {
+                if let Some((key, is_down_action)) = game_key_input.0 {
+                    match is_down_action {
+                        KeyAction::Down => engine.handle_keydown(key),
+                        KeyAction::Up => engine.handle_keyup(key),
                     }
-                    res
                 }
-            }
-            fn count_asteroids(asteroids: &[Asteroid]) -> AsteroidMap {
-                let mut counts = AsteroidMap::create();
-                for a in asteroids.iter() {
-                    *counts.0.entry(a.sz).or_insert(0) += 1;
+
+                struct AsteroidMap(HashMap<AsteroidSize, i32>);
+                impl AsteroidMap {
+                    fn create() -> AsteroidMap {
+                        let mut res: AsteroidMap = AsteroidMap(HashMap::new());
+                        for sz in AsteroidSize::iter() {
+                            res.0.insert(sz, 0);
+                        }
+                        res
+                    }
                 }
-                counts
-            }
+                fn count_asteroids(asteroids: &[Asteroid]) -> AsteroidMap {
+                    let mut counts = AsteroidMap::create();
+                    for a in asteroids.iter() {
+                        *counts.0.entry(a.sz).or_insert(0) += 1;
+                    }
+                    counts
+                }
 
-            let score_before_loop = engine.score;
-            let shots_before_loop = engine.shots.len();
-            let asteroids_before_loop = count_asteroids(&engine.asteroids);
+                let score_before_loop = engine.score;
+                let shots_before_loop = engine.shots.len();
+                let asteroids_before_loop = count_asteroids(&engine.asteroids);
 
-            engine.handle_loop_update();
+                engine.handle_loop_update();
 
-            let score_after_loop = engine.score;
-            let shots_after_loop = engine.shots.len();
-            let asteroids_after_loop = count_asteroids(&engine.asteroids);
+                let score_after_loop = engine.score;
+                let shots_after_loop = engine.shots.len();
+                let asteroids_after_loop = count_asteroids(&engine.asteroids);
 
-            if score_after_loop > score_before_loop {
+                if score_after_loop > score_before_loop {
+                    assert_that!(
+                        shots_after_loop,
+                        lt(shots_before_loop),
+                        "if the score went up, a shot must have contacted a target"
+                    );
+                }
+
+                let destroyed_asteroids = {
+                    let mut map = AsteroidMap::create();
+
+                    // Destroyed large are direct
+                    let destroyed_large = asteroids_before_loop.0[&AsteroidSize::Large]
+                        - asteroids_after_loop.0[&AsteroidSize::Large];
+                    map.0.insert(AsteroidSize::Large, destroyed_large);
+
+                    // Destroyed medium must account for 2 new ones from destroyed large
+                    let destroyed_medium = asteroids_before_loop.0[&AsteroidSize::Medium]
+                        - asteroids_after_loop.0[&AsteroidSize::Medium]
+                        + destroyed_large * 2;
+                    map.0.insert(AsteroidSize::Medium, destroyed_medium);
+
+                    // Destroyed small must account for 2 new ones from destroyed medium
+                    let destroyed_small = asteroids_before_loop.0[&AsteroidSize::Small]
+                        - asteroids_after_loop.0[&AsteroidSize::Small]
+                        + destroyed_medium * 2;
+                    map.0.insert(AsteroidSize::Small, destroyed_small);
+
+                    map
+                };
+
+                let score_from_destroyed = {
+                    let mut score = 0;
+                    for sz in AsteroidSize::iter() {
+                        score += destroyed_asteroids.0[&sz] * Asteroid::score_from_size(&sz);
+                    }
+                    score
+                };
+
                 assert_that!(
-                    shots_after_loop,
-                    lt(shots_before_loop),
-                    "if the score went up, a shot must have contacted a target"
-                );
-            }
-
-            let destroyed_asteroids = {
-                let mut map = AsteroidMap::create();
-
-                // Destroyed large are direct
-                let destroyed_large = asteroids_before_loop.0[&AsteroidSize::Large]
-                    - asteroids_after_loop.0[&AsteroidSize::Large];
-                map.0.insert(AsteroidSize::Large, destroyed_large);
-
-                // Destroyed medium must account for 2 new ones from destroyed large
-                let destroyed_medium = asteroids_before_loop.0[&AsteroidSize::Medium]
-                    - asteroids_after_loop.0[&AsteroidSize::Medium]
-                    + destroyed_large * 2;
-                map.0.insert(AsteroidSize::Medium, destroyed_medium);
-
-                // Destroyed small must account for 2 new ones from destroyed medium
-                let destroyed_small = asteroids_before_loop.0[&AsteroidSize::Small]
-                    - asteroids_after_loop.0[&AsteroidSize::Small]
-                    + destroyed_medium * 2;
-                map.0.insert(AsteroidSize::Small, destroyed_small);
-
-                map
-            };
-
-            let score_from_destroyed = {
-                let mut score = 0;
-                for sz in AsteroidSize::iter() {
-                    score += destroyed_asteroids.0[&sz] * Asteroid::score_from_size(&sz);
-                }
-                score
-            };
-
-            assert_that!(
-                score_after_loop,
-                eq(score_from_destroyed + score_before_loop),
-                indoc! {"
+                    score_after_loop,
+                    eq(score_from_destroyed + score_before_loop),
+                    indoc! {"
                     Expected score to increase from {} to {},
                     asteroids_before={:?}, asteroids_after={:?},
                     destroyed={:?}"},
-                score_before_loop,
-                score_after_loop,
-                asteroids_before_loop.0,
-                asteroids_after_loop.0,
-                destroyed_asteroids.0
-            );
+                    score_before_loop,
+                    score_after_loop,
+                    asteroids_before_loop.0,
+                    asteroids_after_loop.0,
+                    destroyed_asteroids.0
+                );
+            }
+            true
         }
+
+        QuickCheck::new()
+            .rng(Gen::new(1000))
+            .tests(100)
+            .quickcheck(run_engine as fn(Vec<GameKeyInput>, u32, u64, u64) -> bool)
     }
 }

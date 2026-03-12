@@ -12,6 +12,7 @@ pub mod rng {
 #[cfg(test)]
 pub mod tests {
     use quickcheck::{Arbitrary, Gen};
+
     #[derive(Clone, Debug)]
     pub struct PositiveFloat(pub f32);
 
@@ -52,6 +53,37 @@ pub mod tests {
                 8 => ShipCommand::Shoot,
                 9 => ShipCommand::Shoot,
                 _ => ShipCommand::NoOp,
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub enum KeyAction {
+        Up,
+        Down,
+    }
+    #[derive(Clone, Debug)]
+    pub struct GameKeyInput(pub Option<(&'static str, KeyAction)>);
+
+    impl Arbitrary for GameKeyInput {
+        fn arbitrary(g: &mut Gen) -> Self {
+            let keys = [
+                Some("w"),
+                Some("a"),
+                Some("d"),
+                Some(" "),
+                Some("+"),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ];
+            if let Some(key) = g.choose(&keys).unwrap() {
+                let key_action_opts = &[KeyAction::Up, KeyAction::Down];
+                GameKeyInput(Some((key, g.choose(key_action_opts).unwrap().clone())))
+            } else {
+                GameKeyInput(None)
             }
         }
     }

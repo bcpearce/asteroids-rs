@@ -6,6 +6,8 @@ use rand::RngExt;
 use yew::{Html, html};
 
 const BASE_SHOT_COOLDOWN_MS: f32 = 150.0;
+const THRUST_FACTOR: f32 = 3e-3;
+
 pub struct Ship {
     p: Point,
     v: Point,
@@ -16,6 +18,7 @@ pub struct Ship {
     h: f32,
     shot_cooldown: f32,
     maybe_seed: Option<u64>,
+    is_destroyed: bool,
 }
 impl Ship {
     pub fn create(w: f32, h: f32, maybe_seed: Option<u64>) -> Ship {
@@ -32,11 +35,12 @@ impl Ship {
             h,
             shot_cooldown: 0.0,
             maybe_seed,
+            is_destroyed: false,
         }
     }
 
     pub fn thrust(&mut self) {
-        let dv = from_polar(0.01, self.theta_rad);
+        let dv = from_polar(THRUST_FACTOR, self.theta_rad);
         self.v.x += dv.x;
         self.v.y += dv.y;
     }
@@ -54,7 +58,7 @@ impl Ship {
     }
 
     pub fn shoot(&mut self) -> Option<Shot> {
-        if self.shot_cooldown > 0.0 {
+        if self.shot_cooldown > 0.0 || self.is_destroyed {
             None
         } else {
             self.shot_cooldown = BASE_SHOT_COOLDOWN_MS;
@@ -69,6 +73,10 @@ impl Ship {
         self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
         self.v = Point { x: 0.0, y: 0.0 };
     }
+
+    pub fn destroy(&mut self) {
+        self.is_destroyed = true
+    }
 }
 
 impl GameElement for Ship {
@@ -80,7 +88,7 @@ impl GameElement for Ship {
     }
 
     fn alive(&self) -> bool {
-        true
+        self.is_destroyed
     }
 
     fn hitbox(&self) -> Circle {
@@ -96,7 +104,11 @@ impl GameElement for Ship {
         let p3 = from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;
         let points = format!("{} {} {}", p1, p2, p3);
 
-        html! { <polygon points={points} stroke="white" /> }
+        if self.is_destroyed {
+            html! { <circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.01" /> }
+        } else {
+            html! { <polygon points={points} stroke="white" /> }
+        }
     }
 }
 
@@ -151,6 +163,15 @@ mod tests {
             verify_that!(ship.p.y, le(h)).with_failure_message(fail_msg)?;
         }
         Ok(())
+    }
+
+    #[gtest]
+    fn it_cannot_shoot_if_destroyed() {
+        let w = 500.0;
+        let h = 500.0;
+        let mut ship = Ship::create(w, h, Some(0));
+        ship.destroy();
+        assert_that!(ship.shoot(), none())
     }
 
     #[gtest]

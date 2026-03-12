@@ -20,6 +20,12 @@ pub enum Msg {
     Keyup(web_sys::KeyboardEvent),
 }
 
+#[derive(Clone, Debug)]
+pub enum KeyAction {
+    Up,
+    Down,
+}
+
 pub struct GameContext {
     pub w: f32,
     pub h: f32,
@@ -33,7 +39,7 @@ pub trait GameElement {
     fn render(&self) -> Html;
 }
 
-type KeyMap = HashMap<String, bool>;
+type KeyMap = HashMap<String, KeyAction>;
 pub struct Engine {
     pub w: u32,
     pub h: u32,
@@ -60,6 +66,12 @@ impl Engine {
 
     fn handle_loop_update(&mut self) {
         let ctx = self.get_context();
+        if let Some(thrust) = self.keymap.get("w") {
+            match thrust {
+                KeyAction::Down => self.ship.thrust(),
+                KeyAction::Up => (),
+            }
+        }
         let mut game_elements: Vec<&mut dyn GameElement> = Vec::new();
         game_elements.push(&mut self.ship);
         game_elements.extend(self.asteroids.iter_mut().map(|a| a as &mut dyn GameElement));
@@ -107,6 +119,13 @@ impl Engine {
         for index in shot_indexes_used.iter().rev() {
             self.shots.swap_remove(*index);
         }
+
+        for asteroid in self.asteroids.iter() {
+            if asteroid.hitbox() | self.ship.hitbox() {
+                self.ship.destroy();
+                break;
+            }
+        }
     }
 
     fn add_shot(&mut self) {
@@ -118,13 +137,13 @@ impl Engine {
 
     fn handle_keydown(&mut self, key: &str) {
         match key {
-            "w" | "W" => self.ship.thrust(),
             "a" | "A" => self.ship.rotate_left(),
             "d" | "D" => self.ship.rotate_right(),
             "." | ">" | "+" => self.ship.hyperspace(),
             "Spacebar" | " " => self.add_shot(),
             _ => {
-                self.keymap.insert(String::from(key), true);
+                self.keymap
+                    .insert(String::from(key).to_ascii_lowercase(), KeyAction::Down);
             }
         }
     }
@@ -133,7 +152,7 @@ impl Engine {
         match key {
             "a" | "A" | "d" | "D" => self.ship.stop_rotate(),
             _ => {
-                self.keymap.insert(String::from(key), false);
+                self.keymap.insert(String::from(key), KeyAction::Up);
             }
         }
     }
@@ -226,13 +245,12 @@ impl Component for Engine {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::{asteroid::Size as AsteroidSize, common::tests::KeyAction};
+    use crate::asteroid::Size as AsteroidSize;
 
     use super::*;
-    use crate::common::tests::GameKeyInput;
     use googletest::prelude::*;
     use indoc::indoc;
-    use quickcheck::{Gen, QuickCheck};
+    use quickcheck::{Arbitrary, Gen, QuickCheck};
     use strum::IntoEnumIterator;
 
     fn create_test_engine(difficulty: u32, engine_seed: u64, ship_seed: u64) -> Engine {
@@ -250,6 +268,32 @@ mod tests {
             _interval: None,
             _keydown: None,
             _keyup: None,
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct GameKeyInput(pub Option<(&'static str, KeyAction)>);
+
+    impl Arbitrary for GameKeyInput {
+        fn arbitrary(g: &mut Gen) -> Self {
+            let keys = [
+                Some("w"),
+                Some("a"),
+                Some("d"),
+                Some(" "),
+                Some("+"),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ];
+            if let Some(key) = g.choose(&keys).unwrap() {
+                let key_action_opts = &[KeyAction::Up, KeyAction::Down];
+                GameKeyInput(Some((key, g.choose(key_action_opts).unwrap().clone())))
+            } else {
+                GameKeyInput(None)
+            }
         }
     }
 

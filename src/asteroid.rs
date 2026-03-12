@@ -15,6 +15,8 @@ const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
 const SPLIT_ANGLE_RADS: f32 = 0.3;
+const DEBRIS_TTL_MS: f32 = 600.0;
+const DEBRIS_VELOCITY_MUL: f32 = 1.5;
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq, EnumIter)]
 pub enum Size {
@@ -30,6 +32,7 @@ pub struct Asteroid {
     v: Point,
     edge_points: Rc<Vec<Point>>,
     pub sz: Size,
+    debris_ttl: f32,
 }
 
 impl Asteroid {
@@ -63,6 +66,7 @@ impl Asteroid {
             ),
             edge_points: Rc::new(edge_points),
             sz,
+            debris_ttl: DEBRIS_TTL_MS,
         }
     }
 
@@ -71,7 +75,7 @@ impl Asteroid {
             Size::Large => 2.0,
             Size::Medium => 1.0,
             Size::Small => 0.55,
-            Size::Destroyed => 0.0,
+            Size::Destroyed => 0.0 + (DEBRIS_TTL_MS - self.debris_ttl),
         }
     }
 
@@ -96,12 +100,14 @@ impl Asteroid {
                     v: self.v.rotate(SPLIT_ANGLE_RADS),
                     edge_points: self.edge_points.clone(),
                     sz: Size::Medium,
+                    debris_ttl: DEBRIS_TTL_MS,
                 },
                 Asteroid {
                     p: self.p,
                     v: self.v.rotate(-SPLIT_ANGLE_RADS),
                     edge_points: self.edge_points.clone(),
                     sz: Size::Medium,
+                    debris_ttl: DEBRIS_TTL_MS,
                 },
             ]),
             Size::Medium => Some([
@@ -110,15 +116,32 @@ impl Asteroid {
                     v: self.v.rotate(SPLIT_ANGLE_RADS),
                     edge_points: self.edge_points.clone(),
                     sz: Size::Small,
+                    debris_ttl: DEBRIS_TTL_MS,
                 },
                 Asteroid {
                     p: self.p,
                     v: self.v.rotate(-SPLIT_ANGLE_RADS),
                     edge_points: self.edge_points.clone(),
                     sz: Size::Small,
+                    debris_ttl: DEBRIS_TTL_MS,
                 },
             ]),
-            Size::Small => None,
+            Size::Small => Some([
+                Asteroid {
+                    p: self.p,
+                    v: self.v.rotate(SPLIT_ANGLE_RADS) * DEBRIS_VELOCITY_MUL,
+                    edge_points: self.edge_points.clone(),
+                    sz: Size::Destroyed,
+                    debris_ttl: DEBRIS_TTL_MS,
+                },
+                Asteroid {
+                    p: self.p,
+                    v: self.v.rotate(-SPLIT_ANGLE_RADS) * DEBRIS_VELOCITY_MUL,
+                    edge_points: self.edge_points.clone(),
+                    sz: Size::Destroyed,
+                    debris_ttl: DEBRIS_TTL_MS,
+                },
+            ]),
             Size::Destroyed => None,
         }
     }
@@ -131,7 +154,10 @@ impl GameElement for Asteroid {
     }
 
     fn alive(&self) -> bool {
-        self.sz != Size::Destroyed
+        match self.sz {
+            Size::Destroyed => self.debris_ttl > 0.0,
+            _ => true,
+        }
     }
 
     fn hitbox(&self) -> Circle {
@@ -142,12 +168,19 @@ impl GameElement for Asteroid {
     }
 
     fn render(&self) -> Html {
-        let points = self
-            .edge_points
-            .iter()
-            .map(|&p| p * self.scale() + self.p)
-            .join(" ");
-        html! {<polygon points={points} stroke="white" />}
+        match self.sz {
+            Size::Destroyed => {
+                html! {<circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.1" stroke="white"/>}
+            }
+            _ => {
+                let points = self
+                    .edge_points
+                    .iter()
+                    .map(|&p| p * self.scale() + self.p)
+                    .join(" ");
+                html! {<polygon points={points} stroke="white" />}
+            }
+        }
     }
 }
 

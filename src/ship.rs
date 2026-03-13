@@ -146,8 +146,16 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]
-    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
-        let s = Ship::create(w.0, h.0, Some(seed));
+    fn it_renders_valid_svg(
+        w: PositiveFloat,
+        h: PositiveFloat,
+        seed: u64,
+        is_destroyed: bool,
+    ) -> TestResult {
+        let mut s = Ship::create(w.0, h.0, Some(seed));
+        if is_destroyed {
+            s.destroy();
+        }
         let svg_wrap = format!("<svg>{:?}</svg>", s.render());
         TestResult::from_bool(is_svg_string(svg_wrap))
     }

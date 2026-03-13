@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use crate::asteroid::Size as AsteroidSize;
 use crate::ship::Ship;
 use crate::shot::Shot;
 use crate::{asteroid::Asteroid, math::Circle};
-use gloo::events::EventListener;
+use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
+use web_sys::KeyboardEvent;
 use web_sys::wasm_bindgen::JsCast;
 use yew::{Component, Context, Html, html};
 
@@ -16,8 +18,8 @@ const MAX_ASTEROIDS: usize = 10;
 
 pub enum Msg {
     Tick,
-    Keydown(web_sys::KeyboardEvent),
-    Keyup(web_sys::KeyboardEvent),
+    Keydown(KeyboardEvent),
+    Keyup(KeyboardEvent),
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +39,7 @@ pub trait GameElement {
     fn alive(&self) -> bool;
     fn hitbox(&self) -> Circle;
     fn render(&self) -> Html;
+    fn destroy(&mut self);
 }
 
 type KeyMap = HashMap<String, KeyAction>;
@@ -80,7 +83,8 @@ impl Engine {
         for ge in game_elements.iter_mut() {
             ge.update(&ctx);
         }
-        self.handle_collision();
+        self.handle_shot_collision();
+        self.handle_ship_collision();
         self.shots.retain(|s| s.alive());
         self.asteroids.retain(|a| a.alive());
     }
@@ -94,15 +98,19 @@ impl Engine {
         self.difficulty -= 1;
     }
 
-    fn handle_collision(&mut self) {
-        let mut shot_indexes_used: Vec<usize> = Vec::new();
-        for (shot_index, shot) in self.shots.iter().enumerate() {
+    fn handle_shot_collision(&mut self) {
+        for shot in self.shots.iter_mut() {
             let mut maybe_hit_index: Option<usize> = None;
-            for (i, asteroid) in self.asteroids.iter().enumerate() {
+            for (i, asteroid) in self
+                .asteroids
+                .iter()
+                .filter(|&a| a.sz != AsteroidSize::Destroyed)
+                .enumerate()
+            {
                 if shot.hitbox() | asteroid.hitbox() {
                     self.score += asteroid.score();
                     maybe_hit_index = Some(i);
-                    shot_indexes_used.push(shot_index);
+                    shot.destroy();
                     break;
                 }
             }
@@ -112,15 +120,17 @@ impl Engine {
                     self.asteroids.extend(new_asteroids);
                 }
                 // Remove destroyed or split
-                self.asteroids.swap_remove(hit_index);
+                self.asteroids[hit_index].destroy();
             }
         }
-        // Clear used-up shots
-        for index in shot_indexes_used.iter().rev() {
-            self.shots.swap_remove(*index);
-        }
+    }
 
-        for asteroid in self.asteroids.iter() {
+    fn handle_ship_collision(&mut self) {
+        for asteroid in self
+            .asteroids
+            .iter()
+            .filter(|&a| a.sz != AsteroidSize::Destroyed)
+        {
             if asteroid.hitbox() | self.ship.hitbox() {
                 self.ship.destroy();
                 break;
@@ -156,6 +166,22 @@ impl Engine {
             }
         }
     }
+
+    fn render(&self) -> Html {
+        html! {
+            <g>
+                <text
+                    x={(self.w as f32 * 0.1).to_string()}
+                    y={(self.h as f32 * 0.1).to_string()}
+                    fill="#FFFFFF" font-size="20" font-family="monospace">
+                    {self.score}
+                </text>
+                {self.ship.render()}
+                {self.shots.iter().map(|s| s.render()).collect::<Html>()}
+                {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
+            </g>
+        }
+    }
 }
 
 impl Component for Engine {
@@ -170,18 +196,17 @@ impl Component for Engine {
             })
         };
         let window = gloo::utils::window();
+        let options = EventListenerOptions::enable_prevent_default();
         let keydown = {
             let link = ctx.link().clone();
-            EventListener::new(&window, "keydown", move |e| {
-                e.prevent_default();
+            EventListener::new_with_options(&window, "keydown", options, move |e| {
                 let event = e.dyn_ref::<web_sys::KeyboardEvent>().unwrap().clone();
                 link.send_message(Msg::Keydown(event));
             })
         };
         let keyup = {
             let link = ctx.link().clone();
-            EventListener::new(&window, "keyup", move |e| {
-                e.prevent_default();
+            EventListener::new_with_options(&window, "keyup", options, move |e| {
                 let event = e.dyn_ref::<web_sys::KeyboardEvent>().unwrap().clone();
                 link.send_message(Msg::Keyup(event));
             })
@@ -226,31 +251,24 @@ impl Component for Engine {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         let view_box = format!("0 0 {} {}", self.w, self.h);
         html! {
-            <svg class="svg-container" viewBox={view_box}>
-                <text
-                    x={(self.w as f32 * 0.1).to_string()}
-                    y={(self.h as f32 * 0.1).to_string()}
-                    fill="#FFFFFF" font-size="20" font-family="monospace">
-                    {self.score}
-                </text>
-                {self.ship.render()}
-                {self.shots.iter().map(|s| s.render()).collect::<Html>()}
-                {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
-            </svg>
+        <svg class="svg-container" viewBox={view_box}>
+            {self.render()}
+        </svg>
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use crate::asteroid::Size as AsteroidSize;
+    use crate::math::Point;
 
     use super::*;
     use googletest::prelude::*;
     use indoc::indoc;
+    use is_svg::is_svg_string;
+    use p_test::p_test;
     use quickcheck::{Arbitrary, Gen, QuickCheck};
+    use std::{collections::HashMap, rc::Rc};
     use strum::IntoEnumIterator;
 
     fn create_test_engine(difficulty: u32, engine_seed: u64, ship_seed: u64) -> Engine {
@@ -268,6 +286,84 @@ mod tests {
             _interval: None,
             _keydown: None,
             _keyup: None,
+        }
+    }
+
+    #[gtest]
+    fn it_renders() {
+        let engine = create_test_engine(BASE_DIFFICULTY, 42, 42);
+        let svg_string = format!("<svg>{:?}</svg>", engine.render());
+        assert_that!(is_svg_string(&svg_string), is_true(), "{:?}", &svg_string)
+    }
+
+    #[p_test(
+        (Point { x: 10.0, y: 10.0 }, false, AsteroidSize::Large),
+        (Point { x: 10.0, y: 10.0 }, true, AsteroidSize::Destroyed),
+        (Point { x: 100.0, y: 100.0 }, true, AsteroidSize::Large),
+    )]
+    fn it_handles_ship_collisions(
+        ship_point: Point,
+        expect_alive: bool,
+        asteroid_size: AsteroidSize,
+    ) {
+        let mut engine = create_test_engine(BASE_DIFFICULTY, 42, 42);
+        let p = Point { x: 10.0, y: 10.0 };
+        let v = Point { x: 10.0, y: 10.0 };
+        let edge_points = Rc::new(vec![
+            Point { x: 1.0, y: 0.0 },
+            Point { x: -1.0, y: 0.0 },
+            Point { x: 0.0, y: 1.0 },
+            Point { x: 0.0, y: -1.0 },
+        ]);
+        engine.asteroids.push(Asteroid {
+            p,
+            v,
+            edge_points,
+            sz: asteroid_size,
+        });
+        engine.ship = Ship::create_for_test(ship_point);
+        engine.handle_ship_collision();
+        assert_that!(engine.ship.alive(), eq(expect_alive));
+    }
+
+    #[p_test(
+        (Point { x: 10.0, y: 10.0 }, true, AsteroidSize::Large),
+        (Point { x: 10.0, y: 10.0 }, false, AsteroidSize::Destroyed),
+        (Point { x: 100.0, y: 100.0 }, false, AsteroidSize::Large),
+    )]
+    fn it_handles_shot_collisions(
+        shot_point: Point,
+        expect_split: bool,
+        asteroid_size: AsteroidSize,
+    ) {
+        let mut engine = create_test_engine(BASE_DIFFICULTY, 42, 42);
+        let p = Point { x: 10.0, y: 10.0 };
+        let v = Point { x: 10.0, y: 10.0 };
+        let edge_points = Rc::new(vec![
+            Point { x: 1.0, y: 0.0 },
+            Point { x: -1.0, y: 0.0 },
+            Point { x: 0.0, y: 1.0 },
+            Point { x: 0.0, y: -1.0 },
+        ]);
+        engine.asteroids.push(Asteroid {
+            p,
+            v,
+            edge_points,
+            sz: asteroid_size,
+        });
+        engine.ship = Ship::create_for_test(shot_point);
+        engine
+            .shots
+            .push(engine.ship.shoot().expect("Shot should be created"));
+        engine.handle_shot_collision();
+        let shot_count = engine.shots.iter().filter(|&s| s.alive()).count();
+        let asteroid_count = engine.asteroids.len(); // include destroyed
+        if expect_split {
+            assert_that!(asteroid_count, eq(3));
+            assert_that!(shot_count, eq(0));
+        } else {
+            assert_that!(asteroid_count, eq(1));
+            assert_that!(shot_count, eq(1));
         }
     }
 

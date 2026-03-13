@@ -39,6 +39,22 @@ impl Ship {
         }
     }
 
+    #[cfg(test)]
+    pub fn create_for_test(p: Point) -> Ship {
+        Ship {
+            p,
+            v: Point { x: 0.0, y: 0.0 },
+            omega_rad: 0.0,
+            theta_rad: std::f32::consts::PI * 0.25,
+            sz: 10.0,
+            w: 100.0,
+            h: 100.0,
+            shot_cooldown: 0.0,
+            maybe_seed: Some(0),
+            is_destroyed: false,
+        }
+    }
+
     pub fn thrust(&mut self) {
         let dv = from_polar(THRUST_FACTOR, self.theta_rad);
         self.v.x += dv.x;
@@ -73,10 +89,6 @@ impl Ship {
         self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
         self.v = Point { x: 0.0, y: 0.0 };
     }
-
-    pub fn destroy(&mut self) {
-        self.is_destroyed = true
-    }
 }
 
 impl GameElement for Ship {
@@ -88,7 +100,7 @@ impl GameElement for Ship {
     }
 
     fn alive(&self) -> bool {
-        self.is_destroyed
+        !self.is_destroyed
     }
 
     fn hitbox(&self) -> Circle {
@@ -116,6 +128,10 @@ impl GameElement for Ship {
         } else {
             html! { <polygon points={points} stroke="white" /> }
         }
+    }
+
+    fn destroy(&mut self) {
+        self.is_destroyed = true
     }
 }
 

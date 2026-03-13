@@ -43,4 +43,23 @@ impl GameElement for Shot {
     fn render(&self) -> Html {
         html! { <circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r={SHOT_RADIUS.to_string()} stroke="white" fill="white"/> }
     }
+
+    fn destroy(&mut self) {
+        self.ttl = 0.0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{math::Point, shot::Shot};
+    use googletest::prelude::*;
+    use is_svg::is_svg_string;
+
+    #[gtest]
+    fn it_renders() {
+        let shot = Shot::create(Point { x: 0.0, y: 0.0 }, Point { x: 0.0, y: 0.0 }, 0.0);
+        let svg_wrap = format!("<svg>{:?}</svg>", shot.render());
+        assert_that!(is_svg_string(svg_wrap), is_true())
+    }
 }

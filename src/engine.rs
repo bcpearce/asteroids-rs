@@ -4,7 +4,7 @@ use crate::asteroid::Asteroid;
 use crate::asteroid::Size as AsteroidSize;
 use crate::collisions::asteroid_ship_collision;
 use crate::collisions::asteroid_shot_collision;
-use crate::debris::Debris;
+use crate::debris::{Debris, LineDebris};
 use crate::ship::Ship;
 use crate::shot::Shot;
 use gloo::events::{EventListener, EventListenerOptions};
@@ -70,6 +70,7 @@ pub struct Engine {
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
     debris: Vec<Debris>,
+    line_debris: Vec<LineDebris>,
     difficulty: u32,
     score: i32,
     maybe_seed: Option<u64>,
@@ -122,6 +123,7 @@ impl Engine {
             shots: Vec::new(),
             asteroids: Vec::new(),
             debris: Vec::new(),
+            line_debris: Vec::new(),
             difficulty,
             score: 0,
             maybe_seed: maybe_engine_seed,
@@ -169,6 +171,11 @@ impl Engine {
         let mut game_elements: Vec<&mut dyn GameElement> = Vec::new();
         game_elements.push(&mut self.ship);
         game_elements.extend(self.debris.iter_mut().map(|d| d as &mut dyn GameElement));
+        game_elements.extend(
+            self.line_debris
+                .iter_mut()
+                .map(|d| d as &mut dyn GameElement),
+        );
         game_elements.extend(self.asteroids.iter_mut().map(|a| a as &mut dyn GameElement));
         game_elements.extend(self.shots.iter_mut().map(|s| s as &mut dyn GameElement));
 
@@ -224,6 +231,9 @@ impl Engine {
     }
 
     fn handle_ship_collision(&mut self) {
+        if !self.ship.alive() {
+            return;
+        }
         for asteroid in self
             .asteroids
             .iter()
@@ -231,6 +241,7 @@ impl Engine {
         {
             if asteroid_ship_collision(asteroid, &self.ship) {
                 self.ship.destroy();
+                self.line_debris.extend(self.ship.spawn_debris(asteroid.v));
                 break;
             }
         }
@@ -276,6 +287,7 @@ impl Engine {
         html! {
             <g>
                 {self.debris.iter().map(|d| d.render()).collect::<Html>()}
+                {self.line_debris.iter().map(|d| d.render()).collect::<Html>()}
                 {self.ship.render()}
                 {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
@@ -492,6 +504,21 @@ mod tests {
                         lt(shots_before_loop),
                         "if the score went up, a shot must have contacted a target"
                     );
+                }
+
+                match engine.ship.alive() {
+                    true => assert_that!(
+                        engine.line_debris.len(),
+                        eq(0),
+                        "if the ship is alive, no debris from it"
+                    ),
+                    false => {
+                        assert_that!(
+                            engine.line_debris.len(),
+                            eq(engine.ship.polygon().len()),
+                            "if the ship is destroyed, expect the polygon to create LineDebris"
+                        )
+                    }
                 }
 
                 let destroyed_asteroids = {

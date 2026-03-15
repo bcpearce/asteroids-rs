@@ -15,7 +15,6 @@ macro_rules! point {
         }
     };
 }
-#[cfg(test)]
 pub(crate) use point;
 
 macro_rules! polar_point {
@@ -40,6 +39,10 @@ impl Point {
 
     pub fn dot(p1: Point, p2: Point) -> f32 {
         p1.x * p2.x + p1.y * p2.y
+    }
+
+    pub fn midpoint(p1: Point, p2: Point) -> Point {
+        (p1 + p2) * 0.5
     }
 
     pub fn wrap(&mut self, w: f32, h: f32) {
@@ -77,6 +80,12 @@ impl Point {
         } else {
             *self
         }
+    }
+
+    pub fn rotate_about(&self, theta_rad: f32, about: Point) -> Point {
+        let tmp = *self - about;
+        let tmp = tmp.rotate(theta_rad);
+        tmp + about
     }
 
     /// Checks if it exists inside a polygon using ray-casting

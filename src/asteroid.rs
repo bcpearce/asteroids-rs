@@ -1,8 +1,11 @@
 use std::rc::Rc;
+use strum_macros::EnumIter;
 
 use crate::{
+    common,
+    debris::Debris,
     engine::{GameContext, GameElement},
-    math::{Circle, Point, from_polar},
+    math::Point,
 };
 use itertools::Itertools;
 use rand::RngExt;
@@ -14,7 +17,7 @@ const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
 const SPLIT_ANGLE_RADS: f32 = 0.3;
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq, EnumIter)]
 pub enum Size {
     Small,
     Medium,
@@ -24,15 +27,27 @@ pub enum Size {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Asteroid {
-    p: Point,
-    v: Point,
+    pub p: Point,
+    pub v: Point,
     edge_points: Rc<Vec<Point>>,
     pub sz: Size,
+    pub hue: u32,
 }
 
 impl Asteroid {
-    pub fn spawn(w: f32, h: f32) -> Asteroid {
-        let mut rng = rand::rng();
+    #[cfg(test)]
+    pub fn create(p: Point, v: Point, edge_points: Vec<Point>, sz: Size) -> Asteroid {
+        Asteroid {
+            p,
+            v,
+            edge_points: Rc::from(edge_points),
+            sz,
+            hue: 0,
+        }
+    }
+
+    pub fn spawn(w: f32, h: f32, maybe_seed: Option<u64>) -> Asteroid {
+        let mut rng = common::rng::get_rng(maybe_seed);
         let max_angle_rads = std::f32::consts::PI / 3.0; // 6 side ish
         let min_angle_rads = std::f32::consts::PI / 5.5; // 11 side ish
         let mut edge_points = Vec::new();
@@ -43,7 +58,7 @@ impl Asteroid {
         };
         while t < std::f32::consts::PI * 2.0 {
             let r = rng.random_range(MIN_ASTEROID_RADIUS..=MAX_ASTEROID_RADIUS);
-            edge_points.push(from_polar(r, t));
+            edge_points.push(Point::from_polar(r, t));
             t += rng.random_range(min_angle_rads..max_angle_rads);
         }
         let proto = rng.random_range(0..3);
@@ -53,18 +68,20 @@ impl Asteroid {
             2 => Size::Small,
             _ => Size::Destroyed,
         };
+        let hue = rng.random_range(0..360);
         Asteroid {
             p,
-            v: from_polar(
+            v: Point::from_polar(
                 rng.random_range(MIN_ASTEROID_VELOCITY..=MAX_ASTEROID_VELOCITY),
                 rng.random_range(0.0..=2.0 * std::f32::consts::PI),
             ),
             edge_points: Rc::new(edge_points),
             sz,
+            hue,
         }
     }
 
-    fn scale(&self) -> f32 {
+    pub fn scale(&self) -> f32 {
         match self.sz {
             Size::Large => 2.0,
             Size::Medium => 1.0,
@@ -73,7 +90,7 @@ impl Asteroid {
         }
     }
 
-    pub fn score_from_size(sz: Size) -> u32 {
+    pub fn score_from_size(sz: &Size) -> i32 {
         match sz {
             Size::Large => 10,
             Size::Medium => 20,
@@ -82,42 +99,49 @@ impl Asteroid {
         }
     }
 
-    pub fn score(&self) -> u32 {
-        Self::score_from_size(self.sz)
+    pub fn score(&self) -> i32 {
+        Self::score_from_size(&self.sz)
     }
 
     pub fn split(&self) -> Option<[Self; 2]> {
+        fn helper(a: &Asteroid, rotation: f32, new_size: Size) -> Asteroid {
+            Asteroid {
+                p: a.p,
+                v: a.v.rotate(rotation),
+                edge_points: a.edge_points.clone(),
+                sz: new_size,
+                hue: a.hue,
+            }
+        }
         match self.sz {
             Size::Large => Some([
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Medium,
-                },
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(-SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Medium,
-                },
+                helper(self, SPLIT_ANGLE_RADS, Size::Medium),
+                helper(self, -SPLIT_ANGLE_RADS, Size::Medium),
             ]),
             Size::Medium => Some([
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Small,
-                },
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(-SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Small,
-                },
+                helper(self, SPLIT_ANGLE_RADS, Size::Small),
+                helper(self, -SPLIT_ANGLE_RADS, Size::Small),
             ]),
-            Size::Small => None,
+            Size::Small => Some([
+                helper(self, SPLIT_ANGLE_RADS, Size::Destroyed),
+                helper(self, -SPLIT_ANGLE_RADS, Size::Destroyed),
+            ]),
             Size::Destroyed => None,
+        }
+    }
+
+    pub fn polygon(&self) -> Vec<Point> {
+        self.edge_points
+            .iter()
+            .map(|&p| p * self.scale() + self.p)
+            .collect()
+    }
+
+    pub fn make_debris(&self) -> Debris {
+        Debris {
+            p: self.p,
+            v: self.v,
+            hue: self.hue,
         }
     }
 }
@@ -129,23 +153,24 @@ impl GameElement for Asteroid {
     }
 
     fn alive(&self) -> bool {
-        self.sz != Size::Destroyed
-    }
-
-    fn hitbox(&self) -> Circle {
-        Circle {
-            c: self.p,
-            r: self.scale() * MAX_ASTEROID_RADIUS,
-        }
+        !matches!(self.sz, Size::Destroyed)
     }
 
     fn render(&self) -> Html {
-        let points = self
-            .edge_points
-            .iter()
-            .map(|&p| p * self.scale() + self.p)
-            .join(" ");
-        html! {<polygon points={points} stroke="white" />}
+        let hsl = format!("hsl({}, 100%, 50%", self.hue);
+        match self.sz {
+            Size::Destroyed => {
+                html! {<circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.1" stroke={hsl}/>}
+            }
+            _ => {
+                let points = self.polygon().into_iter().join(" ");
+                html! {<polygon points={points} stroke={hsl}/>}
+            }
+        }
+    }
+
+    fn destroy(&mut self) {
+        self.sz = Size::Destroyed;
     }
 }
 
@@ -159,8 +184,12 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]
-    fn it_spawns_an_asteroid_in_bounds(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0);
+    fn it_spawns_an_asteroid_in_bounds(
+        w: PositiveFloat,
+        h: PositiveFloat,
+        seed: u64,
+    ) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0, Some(seed));
         TestResult::from_bool(a.p.x <= w.0 && a.p.y <= h.0)
     }
 
@@ -170,11 +199,12 @@ mod tests {
         h: PositiveFloat,
         t: PositiveFloat,
         iter_count: u32,
+        seed: u64,
     ) -> Result<()> {
         let w = w.0;
         let h = h.0;
         let t = t.0 % 10_000.0;
-        let mut a = Asteroid::spawn(w, h);
+        let mut a = Asteroid::spawn(w, h, Some(seed));
         let ctx = GameContext { w, h, t };
         let iter_count = iter_count % 5000; // limit to 5000 iterations
         for i in 0..iter_count {
@@ -189,14 +219,14 @@ mod tests {
     }
 
     #[quickcheck]
-    fn it_is_a_polygon(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0);
+    fn it_is_a_polygon(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0, Some(seed));
         TestResult::from_bool(a.edge_points.len() >= 3)
     }
 
     #[quickcheck]
-    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0);
+    fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
+        let a = Asteroid::spawn(w.0, h.0, Some(seed));
         let svg_wrap = format!("<svg>{:?}</svg>", a.render());
         TestResult::from_bool(is_svg_string(svg_wrap))
     }

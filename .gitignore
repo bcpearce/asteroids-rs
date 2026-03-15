@@ -1,6 +1,5 @@
 /target/
 /dist/*
-!/dist/.gitattributes
 
 **/*.rs.bk
 .cache

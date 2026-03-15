@@ -15,7 +15,6 @@ const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
 const SPLIT_ANGLE_RADS: f32 = 0.3;
-const DEBRIS_VELOCITY_MUL: f32 = 1.5;
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq, EnumIter)]
 pub enum Size {
@@ -31,6 +30,7 @@ pub struct Asteroid {
     pub v: Point,
     pub edge_points: Rc<Vec<Point>>,
     pub sz: Size,
+    pub hue: u32,
 }
 
 impl Asteroid {
@@ -56,6 +56,7 @@ impl Asteroid {
             2 => Size::Small,
             _ => Size::Destroyed,
         };
+        let hue = rng.random_range(0..360);
         Asteroid {
             p,
             v: from_polar(
@@ -64,6 +65,7 @@ impl Asteroid {
             ),
             edge_points: Rc::new(edge_points),
             sz,
+            hue,
         }
     }
 
@@ -90,48 +92,27 @@ impl Asteroid {
     }
 
     pub fn split(&self) -> Option<[Self; 2]> {
+        fn helper(a: &Asteroid, rotation: f32, new_size: Size) -> Asteroid {
+            Asteroid {
+                p: a.p,
+                v: a.v.rotate(rotation),
+                edge_points: a.edge_points.clone(),
+                sz: new_size,
+                hue: a.hue,
+            }
+        }
         match self.sz {
             Size::Large => Some([
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Medium,
-                },
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(-SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Medium,
-                },
+                helper(self, SPLIT_ANGLE_RADS, Size::Medium),
+                helper(self, -SPLIT_ANGLE_RADS, Size::Medium),
             ]),
             Size::Medium => Some([
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Small,
-                },
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(-SPLIT_ANGLE_RADS),
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Small,
-                },
+                helper(self, SPLIT_ANGLE_RADS, Size::Small),
+                helper(self, -SPLIT_ANGLE_RADS, Size::Small),
             ]),
             Size::Small => Some([
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(SPLIT_ANGLE_RADS) * DEBRIS_VELOCITY_MUL,
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Destroyed,
-                },
-                Asteroid {
-                    p: self.p,
-                    v: self.v.rotate(-SPLIT_ANGLE_RADS) * DEBRIS_VELOCITY_MUL,
-                    edge_points: self.edge_points.clone(),
-                    sz: Size::Destroyed,
-                },
+                helper(self, SPLIT_ANGLE_RADS, Size::Destroyed),
+                helper(self, -SPLIT_ANGLE_RADS, Size::Destroyed),
             ]),
             Size::Destroyed => None,
         }
@@ -156,9 +137,10 @@ impl GameElement for Asteroid {
     }
 
     fn render(&self) -> Html {
+        let hsl = format!("hsl({}, 100%, 50%", self.hue);
         match self.sz {
             Size::Destroyed => {
-                html! {<circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.1" stroke="white"/>}
+                html! {<circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.1" stroke={hsl}/>}
             }
             _ => {
                 let points = self
@@ -166,7 +148,7 @@ impl GameElement for Asteroid {
                     .iter()
                     .map(|&p| p * self.scale() + self.p)
                     .join(" ");
-                html! {<polygon points={points} stroke="white" />}
+                html! {<polygon points={points} stroke={hsl}/>}
             }
         }
     }

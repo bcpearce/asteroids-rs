@@ -16,10 +16,21 @@ const HEIGHT: u32 = 480;
 const BASE_DIFFICULTY: u32 = 10;
 const MAX_ASTEROIDS: usize = 10;
 
+const A_CODE_U: u32 = b'A' as u32;
+const A_CODE_L: u32 = b'a' as u32;
+const D_CODE_U: u32 = b'D' as u32;
+const D_CODE_L: u32 = b'd' as u32;
+#[cfg(test)]
+const W_CODE_U: u32 = b'W' as u32;
+const W_CODE_L: u32 = b'w' as u32;
+const H_CODE_U: u32 = b'H' as u32;
+const H_CODE_L: u32 = b'h' as u32;
+const SPACE_CODE: u32 = b' ' as u32;
+
 pub enum Msg {
     Tick,
-    Keydown(KeyboardEvent),
-    Keyup(KeyboardEvent),
+    Keydown(u32),
+    Keyup(u32),
 }
 
 #[derive(Clone, Debug)]
@@ -42,7 +53,13 @@ pub trait GameElement {
     fn destroy(&mut self);
 }
 
-type KeyMap = HashMap<String, KeyAction>;
+type KeyMap = HashMap<u32, KeyAction>;
+
+struct WindowEventHandler {
+    _interval: Interval,
+    _keydown: EventListener,
+    _keyup: EventListener,
+}
 pub struct Engine {
     pub w: u32,
     pub h: u32,
@@ -54,11 +71,81 @@ pub struct Engine {
     score: i32,
     maybe_seed: Option<u64>,
     keymap: KeyMap,
-    _interval: Option<Interval>,
-    _keydown: Option<EventListener>,
-    _keyup: Option<EventListener>,
+    _maybe_window_event_handler: Option<WindowEventHandler>,
 }
 impl Engine {
+    fn create_impl(
+        maybe_ctx: Option<&Context<Self>>,
+        difficulty: u32,
+        maybe_engine_seed: Option<u64>,
+        maybe_ship_seed: Option<u64>,
+    ) -> Self {
+        let maybe_window_event_handler = {
+            if let Some(ctx) = maybe_ctx {
+                let link = ctx.link().clone();
+                let interval = Interval::new(INTERVAL_DURATION_MILLIS, move || {
+                    link.send_message(Msg::Tick);
+                });
+                let window = gloo::utils::window();
+                let options = EventListenerOptions::enable_prevent_default();
+                let keydown = {
+                    let link = ctx.link().clone();
+                    EventListener::new_with_options(&window, "keydown", options, move |e| {
+                        let event = e.dyn_ref::<KeyboardEvent>().unwrap().clone();
+                        link.send_message(Msg::Keydown(event.key_code()));
+                    })
+                };
+                let keyup = {
+                    let link = ctx.link().clone();
+                    EventListener::new_with_options(&window, "keyup", options, move |e| {
+                        let event = e.dyn_ref::<KeyboardEvent>().unwrap().clone();
+                        link.send_message(Msg::Keyup(event.key_code()));
+                    })
+                };
+                Some(WindowEventHandler {
+                    _interval: interval,
+                    _keydown: keydown,
+                    _keyup: keyup,
+                })
+            } else {
+                None
+            }
+        };
+        Self {
+            w: WIDTH,
+            h: HEIGHT,
+            t: INTERVAL_DURATION_MILLIS as f32,
+            ship: Ship::create(WIDTH as f32, HEIGHT as f32, maybe_ship_seed),
+            shots: Vec::new(),
+            asteroids: Vec::new(),
+            difficulty,
+            score: 0,
+            maybe_seed: maybe_engine_seed,
+            keymap: HashMap::new(),
+            _maybe_window_event_handler: maybe_window_event_handler,
+        }
+    }
+
+    fn update_impl(&mut self, msg: Msg) -> bool {
+        match msg {
+            Msg::Tick => {
+                self.handle_loop_update();
+                while self.asteroids.len() < MAX_ASTEROIDS && self.difficulty > 0 {
+                    self.spawn_asteroid();
+                }
+                true
+            }
+            Msg::Keydown(key) => {
+                self.handle_keydown(key);
+                false
+            }
+            Msg::Keyup(key) => {
+                self.handle_keyup(key);
+                false
+            }
+        }
+    }
+
     fn get_context(&self) -> GameContext {
         GameContext {
             w: self.w as f32,
@@ -69,7 +156,7 @@ impl Engine {
 
     fn handle_loop_update(&mut self) {
         let ctx = self.get_context();
-        if let Some(thrust) = self.keymap.get("w") {
+        if let Some(thrust) = self.keymap.get(&W_CODE_L) {
             match thrust {
                 KeyAction::Down => self.ship.thrust(),
                 KeyAction::Up => (),
@@ -99,7 +186,7 @@ impl Engine {
     }
 
     fn handle_shot_collision(&mut self) {
-        for shot in self.shots.iter_mut() {
+        for shot in self.shots.iter_mut().filter(|s| s.alive()) {
             let mut maybe_hit_index: Option<usize> = None;
             for (i, asteroid) in self
                 .asteroids
@@ -145,24 +232,31 @@ impl Engine {
         }
     }
 
-    fn handle_keydown(&mut self, key: &str) {
-        match key {
-            "a" | "A" => self.ship.rotate_left(),
-            "d" | "D" => self.ship.rotate_right(),
-            "." | ">" | "+" => self.ship.hyperspace(),
-            "Spacebar" | " " => self.add_shot(),
-            _ => {
-                self.keymap
-                    .insert(String::from(key).to_ascii_lowercase(), KeyAction::Down);
+    fn handle_keydown(&mut self, key_code: u32) {
+        match key_code {
+            A_CODE_L | A_CODE_U => self.ship.rotate_left(),
+            D_CODE_L | D_CODE_U => self.ship.rotate_right(),
+            H_CODE_L | H_CODE_U => self.ship.hyperspace(),
+            SPACE_CODE => self.add_shot(),
+            65..=90 => {
+                // Force lowercase entry
+                self.keymap.insert(key_code | 0x20, KeyAction::Down);
             }
-        }
+            _ => {
+                self.keymap.insert(key_code, KeyAction::Down);
+            }
+        };
     }
 
-    fn handle_keyup(&mut self, key: &str) {
-        match key {
-            "a" | "A" | "d" | "D" => self.ship.stop_rotate(),
+    fn handle_keyup(&mut self, key_code: u32) {
+        match key_code {
+            A_CODE_L | A_CODE_U | D_CODE_L | D_CODE_U => self.ship.stop_rotate(),
+            65..=90 => {
+                // Force lowercase entry
+                self.keymap.insert(key_code - 65, KeyAction::Up);
+            }
             _ => {
-                self.keymap.insert(String::from(key), KeyAction::Up);
+                self.keymap.insert(key_code, KeyAction::Up);
             }
         }
     }
@@ -170,15 +264,19 @@ impl Engine {
     fn render(&self) -> Html {
         html! {
             <g>
-                <text
-                    x={(self.w as f32 * 0.1).to_string()}
-                    y={(self.h as f32 * 0.1).to_string()}
-                    fill="#FFFFFF" font-size="20" font-family="monospace">
-                    {self.score}
-                </text>
                 {self.ship.render()}
                 {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
+                <text
+                    x={(self.w as f32 * 0.1).to_string()}
+                    y={(self.h as f32 * 0.1).to_string()}
+                    fill="#FFFFFF"
+                    stroke="#000000"
+                    stroke-width="0.3"
+                    font-size="25"
+                    font-family="monospace">
+                    {self.score}
+                </text>
             </g>
         }
     }
@@ -189,63 +287,11 @@ impl Component for Engine {
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
-        let interval = {
-            let link = ctx.link().clone();
-            Interval::new(INTERVAL_DURATION_MILLIS, move || {
-                link.send_message(Msg::Tick);
-            })
-        };
-        let window = gloo::utils::window();
-        let options = EventListenerOptions::enable_prevent_default();
-        let keydown = {
-            let link = ctx.link().clone();
-            EventListener::new_with_options(&window, "keydown", options, move |e| {
-                let event = e.dyn_ref::<web_sys::KeyboardEvent>().unwrap().clone();
-                link.send_message(Msg::Keydown(event));
-            })
-        };
-        let keyup = {
-            let link = ctx.link().clone();
-            EventListener::new_with_options(&window, "keyup", options, move |e| {
-                let event = e.dyn_ref::<web_sys::KeyboardEvent>().unwrap().clone();
-                link.send_message(Msg::Keyup(event));
-            })
-        };
-        Self {
-            w: WIDTH,
-            h: HEIGHT,
-            t: INTERVAL_DURATION_MILLIS as f32,
-            ship: Ship::create(WIDTH as f32, HEIGHT as f32, None),
-            shots: Vec::new(),
-            asteroids: Vec::new(),
-            difficulty: BASE_DIFFICULTY,
-            score: 0,
-            maybe_seed: None,
-            keymap: HashMap::new(),
-            _interval: Some(interval),
-            _keydown: Some(keydown),
-            _keyup: Some(keyup),
-        }
+        Self::create_impl(Some(ctx), BASE_DIFFICULTY, None, None)
     }
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::Tick => {
-                self.handle_loop_update();
-                while self.asteroids.len() < MAX_ASTEROIDS && self.difficulty > 0 {
-                    self.spawn_asteroid();
-                }
-                true
-            }
-            Msg::Keydown(e) => {
-                self.handle_keydown(e.key().as_str());
-                false
-            }
-            Msg::Keyup(e) => {
-                self.handle_keyup(e.key().as_str());
-                false
-            }
-        }
+        self.update_impl(msg)
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
@@ -272,21 +318,7 @@ mod tests {
     use strum::IntoEnumIterator;
 
     fn create_test_engine(difficulty: u32, engine_seed: u64, ship_seed: u64) -> Engine {
-        Engine {
-            w: WIDTH,
-            h: HEIGHT,
-            t: INTERVAL_DURATION_MILLIS as f32,
-            ship: Ship::create(WIDTH as f32, HEIGHT as f32, Some(ship_seed)),
-            shots: Vec::new(),
-            asteroids: Vec::new(),
-            difficulty,
-            score: 0,
-            maybe_seed: Some(engine_seed),
-            keymap: HashMap::new(),
-            _interval: None,
-            _keydown: None,
-            _keyup: None,
-        }
+        Engine::create_impl(None, difficulty, Some(engine_seed), Some(ship_seed))
     }
 
     #[gtest]
@@ -320,6 +352,7 @@ mod tests {
             v,
             edge_points,
             sz: asteroid_size,
+            hue: 0,
         });
         engine.ship = Ship::create_for_test(ship_point);
         engine.handle_ship_collision();
@@ -350,6 +383,7 @@ mod tests {
             v,
             edge_points,
             sz: asteroid_size,
+            hue: 0,
         });
         engine.ship = Ship::create_for_test(shot_point);
         engine
@@ -368,16 +402,26 @@ mod tests {
     }
 
     #[derive(Clone, Debug)]
-    pub struct GameKeyInput(pub Option<(&'static str, KeyAction)>);
+    pub struct GameKeyInput(pub Option<(u32, KeyAction)>);
 
     impl Arbitrary for GameKeyInput {
         fn arbitrary(g: &mut Gen) -> Self {
             let keys = [
-                Some("w"),
-                Some("a"),
-                Some("d"),
-                Some(" "),
-                Some("+"),
+                Some(W_CODE_L),
+                Some(W_CODE_U),
+                Some(A_CODE_L),
+                Some(A_CODE_U),
+                Some(D_CODE_L),
+                Some(D_CODE_U),
+                Some(H_CODE_L),
+                Some(H_CODE_U),
+                Some(SPACE_CODE),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -386,7 +430,7 @@ mod tests {
             ];
             if let Some(key) = g.choose(&keys).unwrap() {
                 let key_action_opts = &[KeyAction::Up, KeyAction::Down];
-                GameKeyInput(Some((key, g.choose(key_action_opts).unwrap().clone())))
+                GameKeyInput(Some((*key, g.choose(key_action_opts).unwrap().clone())))
             } else {
                 GameKeyInput(None)
             }
@@ -402,16 +446,15 @@ mod tests {
             ship_seed: u64,
         ) -> bool {
             let mut engine = create_test_engine(difficulty % 500, engine_seed, ship_seed);
-            for _ in 0..(difficulty % 50) {
-                engine.spawn_asteroid();
-            }
+
             for game_key_input in actions {
                 if let Some((key, is_down_action)) = game_key_input.0 {
                     match is_down_action {
-                        KeyAction::Down => engine.handle_keydown(key),
-                        KeyAction::Up => engine.handle_keyup(key),
-                    }
+                        KeyAction::Down => engine.update_impl(Msg::Keydown(key)),
+                        KeyAction::Up => engine.update_impl(Msg::Keyup(key)),
+                    };
                 }
+                engine.update_impl(Msg::Tick);
 
                 struct AsteroidMap(HashMap<AsteroidSize, i32>);
                 impl AsteroidMap {
@@ -472,13 +515,10 @@ mod tests {
                     map
                 };
 
-                let score_from_destroyed = {
-                    let mut score = 0;
-                    for sz in AsteroidSize::iter() {
-                        score += destroyed_asteroids.0[&sz] * Asteroid::score_from_size(&sz);
-                    }
-                    score
-                };
+                let score_from_destroyed = AsteroidSize::iter()
+                    .map(|sz| destroyed_asteroids.0[&sz] * Asteroid::score_from_size(&sz))
+                    .reduce(|acc, val| acc + val)
+                    .expect("Score was not provided by reducer");
 
                 assert_that!(
                     score_after_loop,

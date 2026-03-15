@@ -4,6 +4,7 @@ use crate::asteroid::Asteroid;
 use crate::asteroid::Size as AsteroidSize;
 use crate::collisions::asteroid_ship_collision;
 use crate::collisions::asteroid_shot_collision;
+use crate::debris::Debris;
 use crate::ship::Ship;
 use crate::shot::Shot;
 use gloo::events::{EventListener, EventListenerOptions};
@@ -68,6 +69,7 @@ pub struct Engine {
     ship: Ship,
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
+    debris: Vec<Debris>,
     difficulty: u32,
     score: i32,
     maybe_seed: Option<u64>,
@@ -119,6 +121,7 @@ impl Engine {
             ship: Ship::create(WIDTH as f32, HEIGHT as f32, maybe_ship_seed),
             shots: Vec::new(),
             asteroids: Vec::new(),
+            debris: Vec::new(),
             difficulty,
             score: 0,
             maybe_seed: maybe_engine_seed,
@@ -165,6 +168,7 @@ impl Engine {
         }
         let mut game_elements: Vec<&mut dyn GameElement> = Vec::new();
         game_elements.push(&mut self.ship);
+        game_elements.extend(self.debris.iter_mut().map(|d| d as &mut dyn GameElement));
         game_elements.extend(self.asteroids.iter_mut().map(|a| a as &mut dyn GameElement));
         game_elements.extend(self.shots.iter_mut().map(|s| s as &mut dyn GameElement));
 
@@ -174,6 +178,12 @@ impl Engine {
         self.handle_shot_collision();
         self.handle_ship_collision();
         self.shots.retain(|s| s.alive());
+        self.debris.extend(
+            self.asteroids
+                .iter()
+                .filter(|a| !a.alive())
+                .map(|a| a.make_debris()),
+        );
         self.asteroids.retain(|a| a.alive());
     }
 
@@ -254,7 +264,7 @@ impl Engine {
             A_CODE_L | A_CODE_U | D_CODE_L | D_CODE_U => self.ship.stop_rotate(),
             65..=90 => {
                 // Force lowercase entry
-                self.keymap.insert(key_code - 65, KeyAction::Up);
+                self.keymap.insert(key_code + 32, KeyAction::Up);
             }
             _ => {
                 self.keymap.insert(key_code, KeyAction::Up);
@@ -265,6 +275,7 @@ impl Engine {
     fn render(&self) -> Html {
         html! {
             <g>
+                {self.debris.iter().map(|d| d.render()).collect::<Html>()}
                 {self.ship.render()}
                 {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}

@@ -3,6 +3,7 @@ use strum_macros::EnumIter;
 
 use crate::{
     common,
+    debris::Debris,
     engine::{GameContext, GameElement},
     math::Point,
 };
@@ -134,6 +135,14 @@ impl Asteroid {
             .iter()
             .map(|&p| p * self.scale() + self.p)
             .collect()
+    }
+
+    pub fn make_debris(&self) -> Debris {
+        Debris {
+            p: self.p,
+            v: self.v,
+            hue: self.hue,
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 mod asteroid;
 mod collisions;
 mod common;
+mod debris;
 mod engine;
 mod math;
 mod ship;

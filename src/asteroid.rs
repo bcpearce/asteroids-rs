@@ -4,7 +4,7 @@ use strum_macros::EnumIter;
 use crate::{
     common,
     engine::{GameContext, GameElement},
-    math::{Circle, Point, from_polar},
+    math::Point,
 };
 use itertools::Itertools;
 use rand::RngExt;
@@ -28,12 +28,23 @@ pub enum Size {
 pub struct Asteroid {
     pub p: Point,
     pub v: Point,
-    pub edge_points: Rc<Vec<Point>>,
+    edge_points: Rc<Vec<Point>>,
     pub sz: Size,
     pub hue: u32,
 }
 
 impl Asteroid {
+    #[cfg(test)]
+    pub fn create(p: Point, v: Point, edge_points: Vec<Point>, sz: Size) -> Asteroid {
+        Asteroid {
+            p,
+            v,
+            edge_points: Rc::from(edge_points),
+            sz,
+            hue: 0,
+        }
+    }
+
     pub fn spawn(w: f32, h: f32, maybe_seed: Option<u64>) -> Asteroid {
         let mut rng = common::rng::get_rng(maybe_seed);
         let max_angle_rads = std::f32::consts::PI / 3.0; // 6 side ish
@@ -46,7 +57,7 @@ impl Asteroid {
         };
         while t < std::f32::consts::PI * 2.0 {
             let r = rng.random_range(MIN_ASTEROID_RADIUS..=MAX_ASTEROID_RADIUS);
-            edge_points.push(from_polar(r, t));
+            edge_points.push(Point::from_polar(r, t));
             t += rng.random_range(min_angle_rads..max_angle_rads);
         }
         let proto = rng.random_range(0..3);
@@ -59,7 +70,7 @@ impl Asteroid {
         let hue = rng.random_range(0..360);
         Asteroid {
             p,
-            v: from_polar(
+            v: Point::from_polar(
                 rng.random_range(MIN_ASTEROID_VELOCITY..=MAX_ASTEROID_VELOCITY),
                 rng.random_range(0.0..=2.0 * std::f32::consts::PI),
             ),
@@ -69,7 +80,7 @@ impl Asteroid {
         }
     }
 
-    fn scale(&self) -> f32 {
+    pub fn scale(&self) -> f32 {
         match self.sz {
             Size::Large => 2.0,
             Size::Medium => 1.0,
@@ -117,6 +128,13 @@ impl Asteroid {
             Size::Destroyed => None,
         }
     }
+
+    pub fn polygon(&self) -> Vec<Point> {
+        self.edge_points
+            .iter()
+            .map(|&p| p * self.scale() + self.p)
+            .collect()
+    }
 }
 
 impl GameElement for Asteroid {
@@ -129,13 +147,6 @@ impl GameElement for Asteroid {
         !matches!(self.sz, Size::Destroyed)
     }
 
-    fn hitbox(&self) -> Circle {
-        Circle {
-            c: self.p,
-            r: self.scale() * MAX_ASTEROID_RADIUS,
-        }
-    }
-
     fn render(&self) -> Html {
         let hsl = format!("hsl({}, 100%, 50%", self.hue);
         match self.sz {
@@ -143,11 +154,7 @@ impl GameElement for Asteroid {
                 html! {<circle cx={self.p.x.to_string()} cy={self.p.y.to_string()} r="0.1" stroke={hsl}/>}
             }
             _ => {
-                let points = self
-                    .edge_points
-                    .iter()
-                    .map(|&p| p * self.scale() + self.p)
-                    .join(" ");
+                let points = self.polygon().into_iter().join(" ");
                 html! {<polygon points={points} stroke={hsl}/>}
             }
         }

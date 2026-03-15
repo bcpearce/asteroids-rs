@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
 mod asteroid;
+mod collisions;
 mod common;
 mod engine;
 mod math;

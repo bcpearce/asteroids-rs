@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
+use crate::asteroid::Asteroid;
 use crate::asteroid::Size as AsteroidSize;
+use crate::collisions::asteroid_ship_collision;
+use crate::collisions::asteroid_shot_collision;
 use crate::ship::Ship;
 use crate::shot::Shot;
-use crate::{asteroid::Asteroid, math::Circle};
 use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
 use web_sys::KeyboardEvent;
@@ -48,7 +50,6 @@ pub struct GameContext {
 pub trait GameElement {
     fn update(&mut self, ctx: &GameContext);
     fn alive(&self) -> bool;
-    fn hitbox(&self) -> Circle;
     fn render(&self) -> Html;
     fn destroy(&mut self);
 }
@@ -194,7 +195,7 @@ impl Engine {
                 .filter(|&a| a.sz != AsteroidSize::Destroyed)
                 .enumerate()
             {
-                if shot.hitbox() | asteroid.hitbox() {
+                if asteroid_shot_collision(asteroid, shot) {
                     self.score += asteroid.score();
                     maybe_hit_index = Some(i);
                     shot.destroy();
@@ -218,7 +219,7 @@ impl Engine {
             .iter()
             .filter(|&a| a.sz != AsteroidSize::Destroyed)
         {
-            if asteroid.hitbox() | self.ship.hitbox() {
+            if asteroid_ship_collision(asteroid, &self.ship) {
                 self.ship.destroy();
                 break;
             }
@@ -309,12 +310,14 @@ mod tests {
     use crate::math::Point;
 
     use super::*;
+    use crate::math::{point, polar_point};
+    use core::f32;
     use googletest::prelude::*;
     use indoc::indoc;
     use is_svg::is_svg_string;
     use p_test::p_test;
     use quickcheck::{Arbitrary, Gen, QuickCheck};
-    use std::{collections::HashMap, rc::Rc};
+    use std::collections::HashMap;
     use strum::IntoEnumIterator;
 
     fn create_test_engine(difficulty: u32, engine_seed: u64, ship_seed: u64) -> Engine {
@@ -328,10 +331,16 @@ mod tests {
         assert_that!(is_svg_string(&svg_string), is_true(), "{:?}", &svg_string)
     }
 
+    fn create_edge_points(edge_point_count: u32) -> Vec<Point> {
+        (0..=edge_point_count)
+            .map(|i| Point::from_polar(1.0, f32::consts::PI * i as f32 / edge_point_count as f32))
+            .collect()
+    }
+
     #[p_test(
-        (Point { x: 10.0, y: 10.0 }, false, AsteroidSize::Large),
-        (Point { x: 10.0, y: 10.0 }, true, AsteroidSize::Destroyed),
-        (Point { x: 100.0, y: 100.0 }, true, AsteroidSize::Large),
+        (point!(10, 10), false, AsteroidSize::Large),
+        (point!(10, 10), true, AsteroidSize::Destroyed),
+        (point!(100, 100), true, AsteroidSize::Large),
     )]
     fn it_handles_ship_collisions(
         ship_point: Point,
@@ -339,30 +348,21 @@ mod tests {
         asteroid_size: AsteroidSize,
     ) {
         let mut engine = create_test_engine(BASE_DIFFICULTY, 42, 42);
-        let p = Point { x: 10.0, y: 10.0 };
-        let v = Point { x: 10.0, y: 10.0 };
-        let edge_points = Rc::new(vec![
-            Point { x: 1.0, y: 0.0 },
-            Point { x: -1.0, y: 0.0 },
-            Point { x: 0.0, y: 1.0 },
-            Point { x: 0.0, y: -1.0 },
-        ]);
-        engine.asteroids.push(Asteroid {
-            p,
-            v,
-            edge_points,
-            sz: asteroid_size,
-            hue: 0,
-        });
+        let p = point!(10, 10);
+        let v = point!(10, 10);
+        let edge_points = create_edge_points(8);
+        engine
+            .asteroids
+            .push(Asteroid::create(p, v, edge_points, asteroid_size));
         engine.ship = Ship::create_for_test(ship_point);
         engine.handle_ship_collision();
         assert_that!(engine.ship.alive(), eq(expect_alive));
     }
 
     #[p_test(
-        (Point { x: 10.0, y: 10.0 }, true, AsteroidSize::Large),
-        (Point { x: 10.0, y: 10.0 }, false, AsteroidSize::Destroyed),
-        (Point { x: 100.0, y: 100.0 }, false, AsteroidSize::Large),
+        (point!(10, 10), true, AsteroidSize::Large),
+        (point!(10, 10), false, AsteroidSize::Destroyed),
+        (point!(100, 100), false, AsteroidSize::Large),
     )]
     fn it_handles_shot_collisions(
         shot_point: Point,
@@ -370,25 +370,16 @@ mod tests {
         asteroid_size: AsteroidSize,
     ) {
         let mut engine = create_test_engine(BASE_DIFFICULTY, 42, 42);
-        let p = Point { x: 10.0, y: 10.0 };
-        let v = Point { x: 10.0, y: 10.0 };
-        let edge_points = Rc::new(vec![
-            Point { x: 1.0, y: 0.0 },
-            Point { x: -1.0, y: 0.0 },
-            Point { x: 0.0, y: 1.0 },
-            Point { x: 0.0, y: -1.0 },
-        ]);
-        engine.asteroids.push(Asteroid {
-            p,
-            v,
-            edge_points,
-            sz: asteroid_size,
-            hue: 0,
-        });
-        engine.ship = Ship::create_for_test(shot_point);
+        let p = point!(10, 10);
+        let v = point!(10, 10);
+        let edge_points_sz = 8;
+        let edge_points = (0..=edge_points_sz)
+            .map(|i| polar_point!(1.0, f32::consts::PI * i as f32 / edge_points_sz as f32))
+            .collect();
         engine
-            .shots
-            .push(engine.ship.shoot().expect("Shot should be created"));
+            .asteroids
+            .push(Asteroid::create(p, v, edge_points, asteroid_size));
+        engine.shots.push(Shot::create(shot_point, v, 0.0));
         engine.handle_shot_collision();
         let shot_count = engine.shots.iter().filter(|&s| s.alive()).count();
         let asteroid_count = engine.asteroids.len(); // include destroyed

@@ -12,7 +12,7 @@ repo = "local"
 hooks = [
     { 
         id = "rustfmt",
-        name = "Run rustfmt",
+        name = "run rustfmt",
         entry = "cargo",
         args = ["fmt", "--", "--check"],
         language = "system",
@@ -20,11 +20,20 @@ hooks = [
     },
     {
         id = "clippy",
-        name = "Run clippy",
+        name = "run clippy",
         entry = "cargo",
         args = ["clippy"],
         language = "system",
         files = "\\.rs$",
+        pass_filenames = false
+    },
+    {
+        id = "enforce-warnings",
+        name = "enforce warnings",
+        entry = "bash",
+        args = ["./hooks/ci/check_warnings.sh"],
+        language = "system",
+        files = "^src/main.rs$",
         pass_filenames = false
     }
 ]

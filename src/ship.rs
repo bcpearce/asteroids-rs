@@ -1,6 +1,6 @@
 use crate::common::rng::get_rng;
 use crate::engine::{GameContext, GameElement};
-use crate::math::{Circle, Point, from_polar};
+use crate::math::Point;
 use crate::shot::Shot;
 use rand::RngExt;
 use yew::{Html, html};
@@ -9,7 +9,7 @@ const BASE_SHOT_COOLDOWN_MS: f32 = 150.0;
 const THRUST_FACTOR: f32 = 3e-3;
 
 pub struct Ship {
-    p: Point,
+    pub p: Point,
     v: Point,
     omega_rad: f32,
     theta_rad: f32,
@@ -56,7 +56,7 @@ impl Ship {
     }
 
     pub fn thrust(&mut self) {
-        let dv = from_polar(THRUST_FACTOR, self.theta_rad);
+        let dv = Point::from_polar(THRUST_FACTOR, self.theta_rad);
         self.v.x += dv.x;
         self.v.y += dv.y;
     }
@@ -103,17 +103,12 @@ impl GameElement for Ship {
         !self.is_destroyed
     }
 
-    fn hitbox(&self) -> Circle {
-        Circle {
-            c: self.p,
-            r: self.sz,
-        }
-    }
-
     fn render(&self) -> Html {
-        let p1 = from_polar(self.sz, self.theta_rad) + self.p;
-        let p2 = from_polar(self.sz * 0.6, self.theta_rad + 0.75 * std::f32::consts::PI) + self.p;
-        let p3 = from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;
+        let p1 = Point::from_polar(self.sz, self.theta_rad) + self.p;
+        let p2 =
+            Point::from_polar(self.sz * 0.6, self.theta_rad + 0.75 * std::f32::consts::PI) + self.p;
+        let p3 =
+            Point::from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;
         let points = format!("{} {} {}", p1, p2, p3);
 
         if self.is_destroyed {

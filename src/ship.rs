@@ -1,7 +1,10 @@
+use crate::common;
 use crate::common::rng::get_rng;
+use crate::debris::LineDebris;
 use crate::engine::{GameContext, GameElement};
-use crate::math::Point;
+use crate::math::{Point, point};
 use crate::shot::Shot;
+use itertools::Itertools;
 use rand::RngExt;
 use yew::{Html, html};
 
@@ -10,7 +13,7 @@ const THRUST_FACTOR: f32 = 3e-3;
 
 pub struct Ship {
     pub p: Point,
-    v: Point,
+    pub v: Point,
     omega_rad: f32,
     theta_rad: f32,
     sz: f32,
@@ -89,6 +92,30 @@ impl Ship {
         self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
         self.v = Point { x: 0.0, y: 0.0 };
     }
+
+    pub fn polygon(&self) -> Vec<Point> {
+        let p1 = Point::from_polar(self.sz, self.theta_rad) + self.p;
+        let p2 =
+            Point::from_polar(self.sz * 0.6, self.theta_rad + 0.75 * std::f32::consts::PI) + self.p;
+        let p3 =
+            Point::from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;
+        vec![p1, p2, p3]
+    }
+
+    pub fn spawn_debris(&self, impact_velocity: Point) -> Vec<LineDebris> {
+        let mut rng = common::rng::get_rng(self.maybe_seed);
+        let points = self.polygon();
+        (0..points.len())
+            .map(move |i| LineDebris {
+                p1: points[i],
+                p2: points[(i + 1) % points.len()],
+                v: self.v
+                    + impact_velocity
+                    + point!(rng.random_range(0.005..0.01), rng.random_range(0.005..0.01)),
+                w: rng.random_range(-0.005..=0.005),
+            })
+            .collect()
+    }
 }
 
 impl GameElement for Ship {
@@ -104,13 +131,6 @@ impl GameElement for Ship {
     }
 
     fn render(&self) -> Html {
-        let p1 = Point::from_polar(self.sz, self.theta_rad) + self.p;
-        let p2 =
-            Point::from_polar(self.sz * 0.6, self.theta_rad + 0.75 * std::f32::consts::PI) + self.p;
-        let p3 =
-            Point::from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;
-        let points = format!("{} {} {}", p1, p2, p3);
-
         if self.is_destroyed {
             html! { <text x={(self.w / 2.0).to_string()} y={(self.h / 2.0).to_string()}
             text-anchor="middle"
@@ -121,6 +141,7 @@ impl GameElement for Ship {
                 {"Game Over"}
             </text> }
         } else {
+            let points = self.polygon().into_iter().join(" ");
             html! { <polygon points={points} stroke="white" /> }
         }
     }

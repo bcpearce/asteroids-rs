@@ -1,0 +1,32 @@
+name: Continuous Integration
+
+on:
+    push:
+        branches: [main]
+    schedule:
+        - cron: 15 */4 * * *
+    workflow_dispatch:
+
+jobs:
+    build-and-test:
+        uses: ./.github/workflows/build.yml
+        with:
+            build-config: release}
+
+    fuzzupload-coverage:
+        needs: build-and-test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v6
+            - name: Download Build Artifact
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-${{ github.sha }}-release
+                  path: dist/
+            - name: Fuzz
+              env:
+                  QUICKCHECK_SIZE: 10000
+                  QUICKCHECK_TESTS: 500
+              run: |-
+                  cargo test engine::tests::it_keeps_score_as_engine_runs -- --no-capture

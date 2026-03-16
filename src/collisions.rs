@@ -9,5 +9,7 @@ pub fn asteroid_shot_collision(asteroid: &Asteroid, shot: &Shot) -> bool {
 
 /// Determines if a Ship collided with an Asteroid using point-in-polygon test
 pub fn asteroid_ship_collision(asteroid: &Asteroid, ship: &Ship) -> bool {
-    ship.p.in_polygon(&asteroid.polygon()).unwrap()
+    ship.polygon()
+        .iter()
+        .any(|p| p.in_polygon(&asteroid.polygon()).unwrap())
 }

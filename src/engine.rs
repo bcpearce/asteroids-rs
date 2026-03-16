@@ -5,6 +5,7 @@ use crate::collisions::asteroid_shot_collision;
 use crate::debris::{Debris, LineDebris};
 use crate::ship::Ship;
 use crate::shot::Shot;
+use crate::ufo::Ufo;
 use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
 use std::collections::HashMap;
@@ -73,6 +74,7 @@ pub struct Engine {
     ship: Ship,
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
+    ufo: Ufo,
     debris: Vec<Debris>,
     line_debris: Vec<LineDebris>,
     difficulty: u32,
@@ -126,6 +128,7 @@ impl Engine {
             ship: Ship::create(WIDTH as f32, HEIGHT as f32, maybe_ship_seed),
             shots: Vec::new(),
             asteroids: Vec::new(),
+            ufo: Ufo::create(),
             debris: Vec::new(),
             line_debris: Vec::new(),
             difficulty,
@@ -143,6 +146,7 @@ impl Engine {
                 while self.asteroids.len() < MAX_ASTEROIDS && self.difficulty > 0 {
                     self.spawn_asteroid();
                 }
+                self.spawn_ufo();
                 true
             }
             Msg::Keydown(key) => {
@@ -174,6 +178,7 @@ impl Engine {
         }
         let mut game_elements: Vec<&mut dyn GameElement> = Vec::new();
         game_elements.push(&mut self.ship);
+        game_elements.push(&mut self.ufo);
         game_elements.extend(self.debris.iter_mut().map(|d| d as &mut dyn GameElement));
         game_elements.extend(
             self.line_debris
@@ -205,6 +210,12 @@ impl Engine {
             self.maybe_seed,
         ));
         self.difficulty -= 1;
+    }
+
+    fn spawn_ufo(&mut self) {
+        if let Some(ufo) = self.ufo.maybe_spawn(self.maybe_seed) {
+            self.ufo = ufo;
+        }
     }
 
     fn handle_shot_collision(&mut self) {
@@ -289,10 +300,11 @@ impl Engine {
 
     fn render(&self) -> Html {
         html! {
-            <g>
+            <>
                 {self.debris.iter().map(|d| d.render()).collect::<Html>()}
                 {self.line_debris.iter().map(|d| d.render()).collect::<Html>()}
                 {self.ship.render()}
+                {self.ufo.render()}
                 {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
                 <text
@@ -305,7 +317,7 @@ impl Engine {
                     font-family="monospace">
                     {self.score}
                 </text>
-            </g>
+            </>
         }
     }
 }
@@ -343,6 +355,7 @@ mod tests {
     use is_svg::is_svg_string;
     use p_test::p_test;
     use quickcheck::{Arbitrary, Gen, QuickCheck};
+    use quickcheck_macros::quickcheck;
     use std::collections::HashMap;
     use strum::IntoEnumIterator;
 
@@ -603,5 +616,13 @@ mod tests {
             .rng(Gen::new(arbitrary_size))
             .tests(tests)
             .quickcheck(run_engine as fn(Vec<GameKeyInput>, u32, u64, u64) -> bool)
+    }
+
+    #[quickcheck]
+    fn it_never_spawns_an_asteroid_on_the_ship(engine_seed: u64) {
+        let mut engine = create_test_engine(BASE_DIFFICULTY, engine_seed, 0);
+        engine.spawn_asteroid();
+        engine.handle_ship_collision();
+        assert_that!(engine.ship.alive(), is_true());
     }
 }

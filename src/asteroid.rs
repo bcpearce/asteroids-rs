@@ -6,6 +6,7 @@ use crate::{
     debris::Debris,
     engine::{GameContext, GameElement},
     math::Point,
+    math::point,
 };
 use itertools::Itertools;
 use rand::RngExt;
@@ -52,9 +53,13 @@ impl Asteroid {
         let min_angle_rads = std::f32::consts::PI / 5.5; // 11 side ish
         let mut edge_points = Vec::new();
         let mut t = rng.random_range(min_angle_rads..max_angle_rads);
-        let p = Point {
-            x: rng.random_range(0.0..=w),
-            y: rng.random_range(0.0..=h),
+        let spawn_edge = rng.random_range(0..4);
+        let p = match spawn_edge {
+            0 => point!(rng.random_range(0.0..w), 0),
+            1 => point!(rng.random_range(0.0..w), h),
+            2 => point!(0, rng.random_range(0.0..h)),
+            3 => point!(w, rng.random_range(0.0..h)),
+            _ => unreachable!("rng only creates between [0, 4)"),
         };
         while t < std::f32::consts::PI * 2.0 {
             let r = rng.random_range(MIN_ASTEROID_RADIUS..=MAX_ASTEROID_RADIUS);

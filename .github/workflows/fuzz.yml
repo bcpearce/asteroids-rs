@@ -1,0 +1,29 @@
+name: Fuzz Test
+
+on:
+  push:
+    branches: [main, fuzz-testing]
+  schedule:
+    - cron: 15 */4 * * *
+  workflow_dispatch:
+
+jobs:
+  build-and-fuzz:
+    name: Build and Fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Build project
+        run: trunk build --frozen --release
+
+      - name: Fuzz
+        env:
+          QUICKCHECK_SIZE: 10000
+          QUICKCHECK_TESTS: 500
+        run: |-
+          cargo test engine::tests::it_keeps_score_as_engine_runs -- --no-capture

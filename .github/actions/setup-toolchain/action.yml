@@ -1,0 +1,30 @@
+name: Setup Toolchain
+description: Sets up the toolchain for Rust/Trunk/WASM
+inputs:
+  build-config:
+    required: true
+    default: release
+    description: "Build configuration [debug, release]"
+  public-url:
+    required: false
+    default: "/"
+    description: "Public URL to serve the App"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Rust Toolchain
+      shell: bash
+      run: |-
+        rustup target add wasm32-unknown-unknown
+        rustup component add llvm-tools
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+    - name: Install trunk
+      shell: bash
+      run: |-
+        export PATH="$HOME/.cargo/bin:$PATH"
+        cargo install wasm-bindgen-cli
+        cargo install cargo-binstall
+        cargo binstall --force trunk -y
+        cargo install cargo-llvm-cov

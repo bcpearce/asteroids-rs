@@ -12,19 +12,20 @@ jobs:
             fail-fast: false
             matrix:
                 config: [debug, release]
-        uses: ./.github/workflows/build.yml
-        with:
-            build-config: ${{  matrix.config }}
-
-    upload-coverage:
-        needs: build-and-test
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Code
               uses: actions/checkout@v6
-            - name: Download coverage report
-              uses: actions/download-artifact@v4
-              with:
-                  name: coverage-report-${{ github.sha }}-debug
+
+            - name: Setup Toolchain
+              uses: ./.github/actions/setup-toolchain
+
+            - name: Build project
+              run: trunk build --frozen ${{ matrix.config == 'release' && '--release' || '' }}
+
+            - name: Test project (Coverage)
+              run: cargo llvm-cov test --lcov --output-path lcov.info
+
             - name: Upload to Coveralls.io
               uses: coverallsapp/github-action@v2
+              if: ${{ matrix.config == 'release' }}

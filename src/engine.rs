@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::asteroid::Asteroid;
 use crate::asteroid::Size as AsteroidSize;
 use crate::collisions::asteroid_ship_collision;
@@ -9,9 +7,15 @@ use crate::ship::Ship;
 use crate::shot::Shot;
 use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
+use std::collections::HashMap;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use web_sys::KeyboardEvent;
 use web_sys::wasm_bindgen::JsCast;
 use yew::{Component, Context, Html, html};
+
+#[cfg(test)]
+static QUICKCHECK_RUN_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 const INTERVAL_DURATION_MILLIS: u32 = 10;
 const WIDTH: u32 = 480;
@@ -330,9 +334,8 @@ impl Component for Engine {
 
 #[cfg(test)]
 mod tests {
-    use crate::math::Point;
-
     use super::*;
+    use crate::math::Point;
     use crate::math::{point, polar_point};
     use core::f32;
     use googletest::prelude::*;
@@ -451,6 +454,24 @@ mod tests {
         }
     }
 
+    fn quickcheck_params() -> (usize, u64) {
+        let mut arbitrary_size: usize = 1000;
+        let mut tests: u64 = 100;
+
+        if let Ok(v) = std::env::var("QUICKCHECK_SIZE") {
+            if let Ok(parsed) = v.parse::<usize>() {
+                arbitrary_size = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("QUICKCHECK_TESTS") {
+            if let Ok(parsed) = v.parse::<u64>() {
+                tests = parsed;
+            }
+        }
+
+        (arbitrary_size, tests)
+    }
+
     #[gtest]
     fn it_keeps_score_as_engine_runs() {
         fn run_engine(
@@ -459,8 +480,15 @@ mod tests {
             engine_seed: u64,
             ship_seed: u64,
         ) -> bool {
-            let mut engine = create_test_engine(difficulty % 500, engine_seed, ship_seed);
-
+            let difficulty = difficulty % 500;
+            let mut engine = create_test_engine(difficulty, engine_seed, ship_seed);
+            let run_count = QUICKCHECK_RUN_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
+            println!(
+                "{:>6}: Running Engine PBT for {} iterations, difficulty={}",
+                run_count,
+                actions.len(),
+                difficulty
+            );
             for game_key_input in actions {
                 if let Some((key, is_down_action)) = game_key_input.0 {
                     match is_down_action {
@@ -566,9 +594,14 @@ mod tests {
             true
         }
 
+        let (arbitrary_size, tests) = quickcheck_params();
+        println!(
+            "Running with arbitraries of size {}, {} tests",
+            arbitrary_size, tests
+        );
         QuickCheck::new()
-            .rng(Gen::new(1000))
-            .tests(100)
+            .rng(Gen::new(arbitrary_size))
+            .tests(tests)
             .quickcheck(run_engine as fn(Vec<GameKeyInput>, u32, u64, u64) -> bool)
     }
 }

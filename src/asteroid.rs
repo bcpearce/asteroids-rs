@@ -2,11 +2,13 @@ use std::rc::Rc;
 use strum_macros::EnumIter;
 
 use crate::{
+    collisions::{ShipCollidable, ShotCollidable},
     common,
     debris::Debris,
     engine::{GameContext, GameElement},
-    math::Point,
-    math::point,
+    math::{Point, point},
+    ship::Ship,
+    shot::Shot,
 };
 use itertools::Itertools;
 use rand::RngExt;
@@ -104,10 +106,6 @@ impl Asteroid {
         }
     }
 
-    pub fn score(&self) -> i32 {
-        Self::score_from_size(&self.sz)
-    }
-
     pub fn split(&self) -> Option<[Self; 2]> {
         fn helper(a: &Asteroid, rotation: f32, new_size: Size) -> Asteroid {
             Asteroid {
@@ -176,6 +174,33 @@ impl GameElement for Asteroid {
 
     fn destroy(&mut self) {
         self.sz = Size::Destroyed;
+    }
+}
+
+impl ShipCollidable for Asteroid {
+    fn did_collide(&self, ship: &Ship) -> bool {
+        let ship_polygon = ship.polygon();
+        let asteroid_polygon = self.polygon();
+        ship_polygon
+            .iter()
+            .any(|p| p.in_polygon(&asteroid_polygon).unwrap_or(false))
+            || asteroid_polygon
+                .iter()
+                .any(|p| p.in_polygon(&ship_polygon).unwrap_or(false))
+    }
+
+    fn v(&self) -> Point {
+        self.v
+    }
+}
+
+impl ShotCollidable for Asteroid {
+    fn did_collide(&self, shot: &Shot) -> bool {
+        shot.p.in_polygon(&self.polygon()).unwrap()
+    }
+
+    fn score(&self) -> i32 {
+        Self::score_from_size(&self.sz)
     }
 }
 

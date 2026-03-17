@@ -1,7 +1,7 @@
 use crate::asteroid::Asteroid;
 use crate::asteroid::Size as AsteroidSize;
-use crate::collisions::asteroid_ship_collision;
-use crate::collisions::asteroid_shot_collision;
+use crate::collisions::ShipCollidable;
+use crate::collisions::ShotCollidable;
 use crate::debris::{Debris, LineDebris};
 use crate::ship::Ship;
 use crate::shot::Shot;
@@ -220,27 +220,33 @@ impl Engine {
 
     fn handle_shot_collision(&mut self) {
         for shot in self.shots.iter_mut().filter(|s| s.alive()) {
-            let mut maybe_hit_index: Option<usize> = None;
-            for (i, asteroid) in self
-                .asteroids
-                .iter()
-                .filter(|&a| a.sz != AsteroidSize::Destroyed)
-                .enumerate()
-            {
-                if asteroid_shot_collision(asteroid, shot) {
-                    self.score += asteroid.score();
-                    maybe_hit_index = Some(i);
-                    shot.destroy();
-                    break;
+            let maybe_hit_index: Option<usize> = (|| {
+                let mut shot_collidables: Vec<&mut dyn ShotCollidable> = Vec::new();
+                shot_collidables.extend(self.asteroids.iter_mut().filter_map(|a| match a.sz {
+                    AsteroidSize::Destroyed => None,
+                    _ => Some(a as &mut dyn ShotCollidable),
+                }));
+                shot_collidables.push(&mut self.ufo);
+                for (i, collidable) in shot_collidables.iter().enumerate() {
+                    if collidable.did_collide(shot) {
+                        self.score += collidable.score();
+                        shot.destroy();
+                        return Some(i);
+                    }
                 }
-            }
+                None
+            })();
             if let Some(hit_index) = maybe_hit_index {
-                let maybe_new_asteroids = self.asteroids[hit_index].split();
-                if let Some(new_asteroids) = maybe_new_asteroids {
-                    self.asteroids.extend(new_asteroids);
+                if hit_index < self.asteroids.len() {
+                    let maybe_new_asteroids = self.asteroids[hit_index].split();
+                    if let Some(new_asteroids) = maybe_new_asteroids {
+                        self.asteroids.extend(new_asteroids);
+                    }
+                    // Remove destroyed or split
+                    self.asteroids[hit_index].destroy();
+                } else {
+                    self.ufo.destroy();
                 }
-                // Remove destroyed or split
-                self.asteroids[hit_index].destroy();
             }
         }
     }
@@ -249,14 +255,16 @@ impl Engine {
         if !self.ship.alive() {
             return;
         }
-        for asteroid in self
-            .asteroids
-            .iter()
-            .filter(|&a| a.sz != AsteroidSize::Destroyed)
-        {
-            if asteroid_ship_collision(asteroid, &self.ship) {
+        let mut ship_collidables: Vec<&mut dyn ShipCollidable> = Vec::new();
+        ship_collidables.extend(self.asteroids.iter_mut().filter_map(|a| match a.sz {
+            AsteroidSize::Destroyed => None,
+            _ => Some(a as &mut dyn ShipCollidable),
+        }));
+        for collidable in ship_collidables {
+            if collidable.did_collide(&self.ship) {
                 self.ship.destroy();
-                self.line_debris.extend(self.ship.spawn_debris(asteroid.v));
+                self.line_debris
+                    .extend(self.ship.spawn_debris(collidable.v()));
                 break;
             }
         }

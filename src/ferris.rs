@@ -3,7 +3,7 @@
 use crate::math::Point;
 use yew::{Html, html};
 
-const ASPECT_RATIO: f32 = 4.0 / 3.0;
+pub const ASPECT_RATIO: f32 = 4.0 / 3.0;
 
 pub fn center_at(p: Point, width: f32) -> Html {
     let x = p.x - width / 2.0;

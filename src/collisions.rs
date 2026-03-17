@@ -1,20 +1,13 @@
-use crate::asteroid::Asteroid;
+use crate::math::Point;
 use crate::ship::Ship;
 use crate::shot::Shot;
 
-/// Determines if a Shot collided with an Asteroid using point-in-polygon test
-pub fn asteroid_shot_collision(asteroid: &Asteroid, shot: &Shot) -> bool {
-    shot.p.in_polygon(&asteroid.polygon()).unwrap()
+pub trait ShotCollidable {
+    fn did_collide(&self, shot: &Shot) -> bool;
+    fn score(&self) -> i32;
 }
 
-/// Determines if a Ship collided with an Asteroid using point-in-polygon test
-pub fn asteroid_ship_collision(asteroid: &Asteroid, ship: &Ship) -> bool {
-    let ship_polygon = ship.polygon();
-    let asteroid_polygon = &asteroid.polygon();
-    ship_polygon
-        .iter()
-        .any(|p| p.in_polygon(asteroid_polygon).unwrap_or(false))
-        || asteroid_polygon
-            .iter()
-            .any(|p| p.in_polygon(&ship_polygon).unwrap_or(false))
+pub trait ShipCollidable {
+    fn did_collide(&self, ship: &Ship) -> bool;
+    fn v(&self) -> Point;
 }

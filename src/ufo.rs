@@ -1,13 +1,17 @@
+use crate::collisions::{ShipCollidable, ShotCollidable};
 use crate::common::rng::get_rng;
 use crate::engine::{GameContext, GameElement};
-use crate::ferris::center_at;
-use crate::math::{Point, point};
+use crate::ferris;
+use crate::math::{Ellipse, Point, ellipse, point};
+use crate::shot::Shot;
 use rand::RngExt;
 use rand::seq::IndexedRandom;
 use yew::{Html, html};
 
 const SCORE_TTL_BASE_MS: f32 = 800.0;
 const RESPAWN_TTL_BASE_MS: f32 = 10000.0;
+const LARGE_WIDTH: f32 = 25.0;
+const SMALL_WIDTH: f32 = 15.0;
 
 #[derive(Clone, Debug, PartialEq)]
 enum State {
@@ -18,7 +22,7 @@ enum State {
 }
 
 pub struct Ufo {
-    p: Point,
+    pub p: Point,
     v: Point,
     state: State,
     score_ttl: f32,
@@ -60,6 +64,17 @@ impl Ufo {
         }
         None
     }
+
+    pub fn get_hitbox(&self) -> Ellipse {
+        let width = match self.state {
+            State::Destroyed => 0.0,
+            State::Hidden => 0.0,
+            State::InViewLarge => LARGE_WIDTH,
+            State::InViewSmall => SMALL_WIDTH,
+        };
+        let height = width / ferris::ASPECT_RATIO;
+        ellipse!(self.p.x, self.p.y, width, height)
+    }
 }
 
 impl GameElement for Ufo {
@@ -96,13 +111,39 @@ impl GameElement for Ufo {
                 }
             }
             State::Hidden => html! {},
-            State::InViewLarge => center_at(self.p, 25.0),
-            State::InViewSmall => center_at(self.p, 15.0),
+            State::InViewLarge => ferris::center_at(self.p, LARGE_WIDTH),
+            State::InViewSmall => ferris::center_at(self.p, SMALL_WIDTH),
         }
     }
 
     fn destroy(&mut self) {
         self.state = State::Destroyed
+    }
+}
+
+impl ShotCollidable for Ufo {
+    fn did_collide(&self, shot: &Shot) -> bool {
+        shot.p.in_ellipse(&self.get_hitbox())
+    }
+
+    fn score(&self) -> i32 {
+        match self.state {
+            State::InViewSmall => 1000,
+            State::InViewLarge => 200,
+            _ => 0,
+        }
+    }
+}
+
+impl ShipCollidable for Ufo {
+    fn did_collide(&self, ship: &crate::ship::Ship) -> bool {
+        ship.polygon()
+            .iter()
+            .any(|p| p.in_ellipse(&self.get_hitbox()))
+    }
+
+    fn v(&self) -> Point {
+        self.v
     }
 }
 

@@ -12,7 +12,7 @@ use itertools::Itertools;
 use rand::RngExt;
 use yew::{Html, html};
 
-const MIN_ASTEROID_RADIUS: f32 = 2.0;
+const MIN_ASTEROID_RADIUS: f32 = 5.0;
 const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;

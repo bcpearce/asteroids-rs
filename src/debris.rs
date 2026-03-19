@@ -94,4 +94,25 @@ mod tests {
         let svg_wrap = format!("<svg>{:?}</svg>", line_debris.render());
         assert_that!(is_svg_string(svg_wrap), is_true())
     }
+
+    #[test]
+    fn it_debris_is_always_alive() {
+        let p = point!(1.0, 5.0);
+        let v = point!(1.0, 1.0);
+        let mut debris = Debris { p, v, hue: 0.0 };
+        assert!(debris.alive());
+        debris.destroy();
+        assert!(debris.alive());
+    }
+    #[test]
+    fn it_line_debris_is_always_alive() {
+        let p1 = point!(1.0, 5.0);
+        let p2 = point!(5.0, 5.0);
+        let v = point!(0.0, 0.0);
+        let w = 0.0;
+        let mut line_debris = LineDebris { p1, p2, v, w };
+        assert!(line_debris.alive());
+        line_debris.destroy();
+        assert!(line_debris.alive());
+    }
 }

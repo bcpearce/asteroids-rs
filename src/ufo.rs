@@ -229,11 +229,49 @@ mod tests {
     use super::*;
     use googletest::prelude::*;
     use is_svg::is_svg_string;
+    use p_test::p_test;
 
-    #[gtest]
-    fn it_renders_valid_svg() {
-        let ufo = Ufo::create();
+    #[p_test(
+        "in_view_large", (State::InViewLarge),
+        "in_view_small", (State::InViewSmall),
+        "destroyed", (State::Destroyed),
+        "hidden", (State::Hidden)
+    )]
+    fn it_renders_valid_svg(ufo_state: State) {
+        let mut ufo = Ufo::create();
+        ufo.state = ufo_state;
         let svg_wrap = format!("<svg>{:?}</svg>", ufo.render());
         assert_that!(is_svg_string(&svg_wrap), is_true(), "{}", &svg_wrap);
+    }
+
+    #[gtest]
+    fn it_renders_its_score_upon_destruction() {
+        let mut ufo = Ufo::create();
+        ufo.state = State::InViewLarge;
+        let score_str = format!("{}", ufo.score());
+        ufo.destroy();
+        let ctx = GameContext {
+            w: 10.0,
+            h: 10.0,
+            t: 33.0,
+        };
+        ufo.update(&ctx);
+        assert_that!(
+            format!("{:?}", ufo.render()),
+            contains_substring(score_str.as_str())
+        );
+    }
+
+    #[gtest]
+    fn it_produces_debris_if_destroyed() {
+        let mut ufo = Ufo::create();
+        ufo.state = State::InViewLarge;
+        assert_that!(ufo.get_debris().len(), eq(0), "Empty before destruction.");
+        ufo.destroy();
+        assert_that!(
+            ufo.get_debris().len(),
+            gt(0),
+            "Non-empty after destruction."
+        );
     }
 }

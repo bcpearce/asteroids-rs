@@ -8,7 +8,7 @@ pub const ASPECT_RATIO: f32 = 4.0 / 3.0;
 pub fn center_at(p: Point, width: f32) -> Html {
     let x = p.x - width / 2.0;
     let height = width / ASPECT_RATIO;
-    let y = p.y + height / 2.0;
+    let y = p.y - height / 2.0;
     html! {
         // The SVG code here is provided by CC0 1.0 Universal
         <svg x={x.to_string()} y={y.to_string()} width={width.to_string()} height={height.to_string()} viewBox="0 0 1200 800">

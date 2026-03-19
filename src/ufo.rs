@@ -1,8 +1,9 @@
 use crate::collisions::{ShipCollidable, ShotCollidable};
 use crate::common::rng::get_rng;
+use crate::debris::Debris;
 use crate::engine::{GameContext, GameElement};
 use crate::ferris;
-use crate::math::{Ellipse, Point, ellipse, point};
+use crate::math::{Ellipse, Point, ellipse, point, polar_point};
 use crate::shot::Shot;
 use rand::RngExt;
 use rand::seq::IndexedRandom;
@@ -13,18 +14,19 @@ const RESPAWN_TTL_BASE_MS: f32 = 10000.0;
 const LARGE_WIDTH: f32 = 25.0;
 const SMALL_WIDTH: f32 = 15.0;
 
-#[derive(Clone, Debug, PartialEq)]
-enum State {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum State {
     Destroyed,
     Hidden,
     InViewSmall,
     InViewLarge,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct Ufo {
     pub p: Point,
     v: Point,
-    state: State,
+    pub state: State,
     score_ttl: f32,
     respawn_ttl: f32,
 }
@@ -40,7 +42,8 @@ impl Ufo {
         }
     }
 
-    pub fn maybe_spawn(&self, maybe_seed: Option<u64>) -> Option<Ufo> {
+    pub fn maybe_spawn(&self, ctx: GameContext, maybe_seed: Option<u64>) -> Option<Ufo> {
+        let (w, h) = (ctx.w, ctx.h);
         if self.state == State::Hidden && self.respawn_ttl < 0.0 {
             let mut rng = get_rng(maybe_seed);
             if rng.random_range(0..10) == 0 {
@@ -53,10 +56,12 @@ impl Ufo {
                 let (state, v) = spawn_choices
                     .choose(&mut rng)
                     .unwrap_or(&(State::InViewLarge, point!(0.1, 0)));
+                let px = if v.x > 0.0 { 0.0 } else { w };
+                let py = rng.random_range(0.1..0.9) * h;
                 return Some(Ufo {
-                    p: point!(0, 120),
+                    p: point!(px, py),
                     v: *v,
-                    state: state.clone(),
+                    state: *state,
                     score_ttl: SCORE_TTL_BASE_MS,
                     respawn_ttl: RESPAWN_TTL_BASE_MS,
                 });
@@ -69,11 +74,38 @@ impl Ufo {
         let width = match self.state {
             State::Destroyed => 0.0,
             State::Hidden => 0.0,
-            State::InViewLarge => LARGE_WIDTH,
-            State::InViewSmall => SMALL_WIDTH,
+            State::InViewLarge => LARGE_WIDTH * 0.5,
+            State::InViewSmall => SMALL_WIDTH * 0.5,
         };
         let height = width / ferris::ASPECT_RATIO;
         ellipse!(self.p.x, self.p.y, width, height)
+    }
+
+    pub fn get_debris(&self) -> Vec<Debris> {
+        const ORANGE_RED: f32 = 16.2;
+        if self.alive() {
+            Vec::new()
+        } else {
+            let mut res = (0..5)
+                .map(|t| {
+                    let theta = t as f32 / 2.5 * std::f32::consts::PI - 0.5 * std::f32::consts::PI;
+                    Debris {
+                        p: self.p + polar_point!(self.get_hitbox().by / 4.0, theta),
+                        v: polar_point!(self.v.mag() / 2.0, theta),
+                        hue: ORANGE_RED,
+                    }
+                })
+                .collect::<Vec<Debris>>();
+            res.extend((0..32).map(|t| {
+                let theta = t as f32 / 16.0 * std::f32::consts::PI - 0.5 * std::f32::consts::PI;
+                Debris {
+                    p: self.p + polar_point!(self.get_hitbox().by / 2.0, theta),
+                    v: polar_point!(self.v.mag(), theta),
+                    hue: ORANGE_RED,
+                }
+            }));
+            res
+        }
     }
 }
 
@@ -104,6 +136,23 @@ impl GameElement for Ufo {
     }
 
     fn render(&self) -> Html {
+        let hitbox = if cfg!(debug_assertions) {
+            let hitbox = self.get_hitbox();
+            html! {
+                    <ellipse
+                    cx={hitbox.center.x.to_string()}
+                    cy={hitbox.center.y.to_string()}
+                    rx={hitbox.ax.to_string()}
+                    ry={hitbox.by.to_string()}
+                    fill="none"
+                    stroke="purple"
+                    stroke-width="1"
+                    />
+            }
+        } else {
+            html! {<></>}
+        };
+
         match self.state {
             State::Destroyed => {
                 html! {
@@ -111,8 +160,16 @@ impl GameElement for Ufo {
                 }
             }
             State::Hidden => html! {},
-            State::InViewLarge => ferris::center_at(self.p, LARGE_WIDTH),
-            State::InViewSmall => ferris::center_at(self.p, SMALL_WIDTH),
+            State::InViewLarge => html! {
+            <>
+                {ferris::center_at(self.p, LARGE_WIDTH)}
+                {hitbox}
+            </>},
+            State::InViewSmall => html! {
+            <>
+                {ferris::center_at(self.p, SMALL_WIDTH)}
+                {hitbox}
+            </>},
         }
     }
 

@@ -204,16 +204,13 @@ impl Engine {
     }
 
     fn spawn_asteroid(&mut self) {
-        self.asteroids.push(Asteroid::spawn(
-            self.w as f32,
-            self.h as f32,
-            self.maybe_seed,
-        ));
+        self.asteroids
+            .push(Asteroid::spawn(&self.get_context(), self.maybe_seed));
         self.difficulty -= 1;
     }
 
     fn spawn_ufo(&mut self) {
-        if let Some(ufo) = self.ufo.maybe_spawn(self.maybe_seed) {
+        if let Some(ufo) = self.ufo.maybe_spawn(self.get_context(), self.maybe_seed) {
             self.ufo = ufo;
         }
     }
@@ -242,10 +239,10 @@ impl Engine {
                     if let Some(new_asteroids) = maybe_new_asteroids {
                         self.asteroids.extend(new_asteroids);
                     }
-                    // Remove destroyed or split
                     self.asteroids[hit_index].destroy();
                 } else {
                     self.ufo.destroy();
+                    self.debris.extend(self.ufo.get_debris());
                 }
             }
         }
@@ -540,6 +537,7 @@ mod tests {
                 let score_before_loop = engine.score;
                 let shots_before_loop = engine.shots.len();
                 let asteroids_before_loop = count_asteroids(&engine.asteroids);
+                let ufo_score = engine.ufo.score();
 
                 engine.handle_loop_update();
 
@@ -597,6 +595,8 @@ mod tests {
                     .map(|sz| destroyed_asteroids.0[&sz] * Asteroid::score_from_size(&sz))
                     .reduce(|acc, val| acc + val)
                     .expect("Score was not provided by reducer");
+                let score_from_destroyed =
+                    score_from_destroyed + if !engine.ufo.alive() { ufo_score } else { 0 };
 
                 assert_that!(
                     score_after_loop,

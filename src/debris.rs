@@ -6,7 +6,7 @@ use yew::html;
 pub struct Debris {
     pub p: Point,
     pub v: Point,
-    pub hue: u32,
+    pub hue: f32,
 }
 
 impl GameElement for Debris {
@@ -79,7 +79,7 @@ mod tests {
     fn it_renders_valid_svg_for_debris() {
         let p = point!(1.0, 5.0);
         let v = point!(1.0, 1.0);
-        let debris = Debris { p, v, hue: 0 };
+        let debris = Debris { p, v, hue: 0.0 };
         let svg_wrap = format!("<svg>{:?}</svg>", debris.render());
         assert_that!(is_svg_string(svg_wrap), is_true())
     }

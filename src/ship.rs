@@ -8,10 +8,11 @@ use itertools::Itertools;
 use rand::RngExt;
 use yew::{Html, html};
 
-const BASE_SHOT_COOLDOWN_MS: f32 = 150.0;
+const BASE_SHOT_COOLDOWN_MS: f32 = 75.0;
 const THRUST_FACTOR: f32 = 3e-3;
 const THRUST_TTL_MS: f32 = 300.0;
 const THRUST_TTL_INC_MS: f32 = 30.0;
+const ROTATION_FACTOR: f32 = std::f32::consts::PI / 250.0;
 
 pub struct Ship {
     pub p: Point,
@@ -72,11 +73,11 @@ impl Ship {
     }
 
     pub fn rotate_left(&mut self) {
-        self.omega_rad = -std::f32::consts::PI / 180.0;
+        self.omega_rad = -ROTATION_FACTOR;
     }
 
     pub fn rotate_right(&mut self) {
-        self.omega_rad = std::f32::consts::PI / 180.0;
+        self.omega_rad = ROTATION_FACTOR;
     }
 
     pub fn stop_rotate(&mut self) {

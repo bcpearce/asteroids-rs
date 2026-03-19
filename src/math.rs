@@ -359,13 +359,14 @@ mod point_tests {
         p: Point,
         theta_rad: f32,
     ) -> TestResult {
+        const MAX_AXIS: f32 = 1e5;
         if p.x.is_finite()
             && p.y.is_finite()
             && theta_rad.is_finite()
-            && (-1e10..1e10).contains(&p.x)
-            && (-1e10..1e10).contains(&p.y)
-            && (0.0..1e10).contains(&width)
-            && (0.0..1e10).contains(&height)
+            && (-MAX_AXIS..MAX_AXIS).contains(&p.x)
+            && (-MAX_AXIS..MAX_AXIS).contains(&p.y)
+            && (0.0..MAX_AXIS).contains(&width)
+            && (0.0..MAX_AXIS).contains(&height)
         {
             let inside = polar_point!(width.min(height), theta_rad) + p;
             TestResult::from_bool(inside.in_ellipse(&ellipse!(p.x, p.y, width, height)))

@@ -58,3 +58,17 @@ pub fn center_at(p: Point, width: f32) -> Html {
         </svg>
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::math::point;
+    use googletest::prelude::*;
+    use is_svg::is_svg_string;
+
+    #[gtest]
+    fn it_renders_valid_svg() {
+        let svg_wrap = format!("<svg>{:?}</svg>", center_at(point!(100.0, 100.0), 25.0));
+        assert_that!(is_svg_string(svg_wrap), is_true());
+    }
+}

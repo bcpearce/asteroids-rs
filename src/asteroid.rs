@@ -197,7 +197,7 @@ impl ShipCollidable for Asteroid {
 
 impl ShotCollidable for Asteroid {
     fn did_collide(&self, shot: &Shot) -> bool {
-        shot.p.in_polygon(&self.polygon()).unwrap()
+        shot.alive() && self.alive() && shot.p.in_polygon(&self.polygon()).unwrap()
     }
 
     fn score(&self) -> i32 {

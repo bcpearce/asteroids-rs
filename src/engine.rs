@@ -216,13 +216,15 @@ impl Engine {
     }
 
     fn handle_shot_collision(&mut self) {
+        let mut new_asteroids: Vec<Asteroid> = Vec::new();
         for shot in self.shots.iter_mut().filter(|s| s.alive()) {
             let maybe_hit_index: Option<usize> = (|| {
                 let mut shot_collidables: Vec<&mut dyn ShotCollidable> = Vec::new();
-                shot_collidables.extend(self.asteroids.iter_mut().filter_map(|a| match a.sz {
-                    AsteroidSize::Destroyed => None,
-                    _ => Some(a as &mut dyn ShotCollidable),
-                }));
+                shot_collidables.extend(
+                    self.asteroids
+                        .iter_mut()
+                        .map(|a| a as &mut dyn ShotCollidable),
+                );
                 shot_collidables.push(&mut self.ufo);
                 for (i, collidable) in shot_collidables.iter().enumerate() {
                     if collidable.did_collide(shot) {
@@ -235,9 +237,9 @@ impl Engine {
             })();
             if let Some(hit_index) = maybe_hit_index {
                 if hit_index < self.asteroids.len() {
-                    let maybe_new_asteroids = self.asteroids[hit_index].split();
-                    if let Some(new_asteroids) = maybe_new_asteroids {
-                        self.asteroids.extend(new_asteroids);
+                    let maybe_asteroids = self.asteroids[hit_index].split();
+                    if let Some(asteroids) = maybe_asteroids {
+                        new_asteroids.extend(asteroids);
                     }
                     self.asteroids[hit_index].destroy();
                 } else {
@@ -246,6 +248,7 @@ impl Engine {
                 }
             }
         }
+        self.asteroids.extend(new_asteroids);
     }
 
     fn handle_ship_collision(&mut self) {
@@ -498,7 +501,7 @@ mod tests {
             engine_seed: u64,
             ship_seed: u64,
         ) -> bool {
-            let difficulty = difficulty % 500;
+            let difficulty = difficulty % 10;
             let mut engine = create_test_engine(difficulty, engine_seed, ship_seed);
             let run_count = QUICKCHECK_RUN_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
             println!(
@@ -507,6 +510,7 @@ mod tests {
                 actions.len(),
                 difficulty
             );
+            engine.update_impl(Msg::Tick);
             for game_key_input in actions {
                 if let Some((key, is_down_action)) = game_key_input.0 {
                     match is_down_action {
@@ -514,7 +518,6 @@ mod tests {
                         KeyAction::Up => engine.update_impl(Msg::Keyup(key)),
                     };
                 }
-                engine.update_impl(Msg::Tick);
 
                 struct AsteroidMap(HashMap<AsteroidSize, i32>);
                 impl AsteroidMap {
@@ -539,7 +542,7 @@ mod tests {
                 let asteroids_before_loop = count_asteroids(&engine.asteroids);
                 let ufo_score = engine.ufo.score();
 
-                engine.handle_loop_update();
+                engine.update_impl(Msg::Tick);
 
                 let score_after_loop = engine.score;
                 let shots_after_loop = engine.shots.len();

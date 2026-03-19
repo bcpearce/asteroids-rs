@@ -260,6 +260,7 @@ impl Engine {
             AsteroidSize::Destroyed => None,
             _ => Some(a as &mut dyn ShipCollidable),
         }));
+        ship_collidables.push(&mut self.ufo as &mut dyn ShipCollidable);
         for collidable in ship_collidables {
             if collidable.did_collide(&self.ship) {
                 self.ship.destroy();

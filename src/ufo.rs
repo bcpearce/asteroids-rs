@@ -28,6 +28,7 @@ pub struct Ufo {
     v: Point,
     pub state: State,
     score_ttl: f32,
+    score_to_show: i32,
     respawn_ttl: f32,
 }
 
@@ -38,7 +39,16 @@ impl Ufo {
             v: point!(0, 0),
             state: State::Hidden,
             score_ttl: SCORE_TTL_BASE_MS,
+            score_to_show: 0,
             respawn_ttl: 0.0,
+        }
+    }
+
+    fn score_from_state(ufo: &Self) -> i32 {
+        match ufo.state {
+            State::InViewSmall => 1000,
+            State::InViewLarge => 200,
+            _ => 0,
         }
     }
 
@@ -63,6 +73,7 @@ impl Ufo {
                     v: *v,
                     state: *state,
                     score_ttl: SCORE_TTL_BASE_MS,
+                    score_to_show: 0,
                     respawn_ttl: RESPAWN_TTL_BASE_MS,
                 });
             }
@@ -119,7 +130,7 @@ impl GameElement for Ufo {
                 }
             }
             State::Destroyed => {
-                self.v = point!(0, 0.01);
+                self.v = point!(0, -0.01);
                 self.score_ttl -= ctx.t;
                 if self.score_ttl < 0.0 {
                     self.state = State::Hidden;
@@ -156,7 +167,18 @@ impl GameElement for Ufo {
         match self.state {
             State::Destroyed => {
                 html! {
-                    <text></text>
+                    <text
+                        x={self.p.x.to_string()}
+                        y={self.p.y.to_string()}
+                        fill="#FFFFFF"
+                        stroke="#000000"
+                        stroke-width="0.3"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        font-size="10"
+                        font-family="monospace">
+                        {self.score_to_show.to_string()}
+                    </text>
                 }
             }
             State::Hidden => html! {},
@@ -174,6 +196,8 @@ impl GameElement for Ufo {
     }
 
     fn destroy(&mut self) {
+        self.score_ttl = SCORE_TTL_BASE_MS;
+        self.score_to_show = Ufo::score_from_state(self);
         self.state = State::Destroyed
     }
 }
@@ -184,11 +208,7 @@ impl ShotCollidable for Ufo {
     }
 
     fn score(&self) -> i32 {
-        match self.state {
-            State::InViewSmall => 1000,
-            State::InViewLarge => 200,
-            _ => 0,
-        }
+        Ufo::score_from_state(self)
     }
 }
 

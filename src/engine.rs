@@ -1,10 +1,11 @@
 use crate::asteroid::Asteroid;
 use crate::asteroid::Size as AsteroidSize;
-use crate::collisions::asteroid_ship_collision;
-use crate::collisions::asteroid_shot_collision;
+use crate::collisions::ShipCollidable;
+use crate::collisions::ShotCollidable;
 use crate::debris::{Debris, LineDebris};
 use crate::ship::Ship;
 use crate::shot::Shot;
+use crate::ufo::Ufo;
 use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
 use std::collections::HashMap;
@@ -73,6 +74,7 @@ pub struct Engine {
     ship: Ship,
     shots: Vec<Shot>,
     asteroids: Vec<Asteroid>,
+    ufo: Ufo,
     debris: Vec<Debris>,
     line_debris: Vec<LineDebris>,
     difficulty: u32,
@@ -126,6 +128,7 @@ impl Engine {
             ship: Ship::create(WIDTH as f32, HEIGHT as f32, maybe_ship_seed),
             shots: Vec::new(),
             asteroids: Vec::new(),
+            ufo: Ufo::create(),
             debris: Vec::new(),
             line_debris: Vec::new(),
             difficulty,
@@ -143,6 +146,7 @@ impl Engine {
                 while self.asteroids.len() < MAX_ASTEROIDS && self.difficulty > 0 {
                     self.spawn_asteroid();
                 }
+                self.spawn_ufo();
                 true
             }
             Msg::Keydown(key) => {
@@ -174,6 +178,7 @@ impl Engine {
         }
         let mut game_elements: Vec<&mut dyn GameElement> = Vec::new();
         game_elements.push(&mut self.ship);
+        game_elements.push(&mut self.ufo);
         game_elements.extend(self.debris.iter_mut().map(|d| d as &mut dyn GameElement));
         game_elements.extend(
             self.line_debris
@@ -199,53 +204,68 @@ impl Engine {
     }
 
     fn spawn_asteroid(&mut self) {
-        self.asteroids.push(Asteroid::spawn(
-            self.w as f32,
-            self.h as f32,
-            self.maybe_seed,
-        ));
+        self.asteroids
+            .push(Asteroid::spawn(&self.get_context(), self.maybe_seed));
         self.difficulty -= 1;
     }
 
+    fn spawn_ufo(&mut self) {
+        if let Some(ufo) = self.ufo.maybe_spawn(self.get_context(), self.maybe_seed) {
+            self.ufo = ufo;
+        }
+    }
+
     fn handle_shot_collision(&mut self) {
+        let mut new_asteroids: Vec<Asteroid> = Vec::new();
         for shot in self.shots.iter_mut().filter(|s| s.alive()) {
-            let mut maybe_hit_index: Option<usize> = None;
-            for (i, asteroid) in self
-                .asteroids
-                .iter()
-                .filter(|&a| a.sz != AsteroidSize::Destroyed)
-                .enumerate()
-            {
-                if asteroid_shot_collision(asteroid, shot) {
-                    self.score += asteroid.score();
-                    maybe_hit_index = Some(i);
-                    shot.destroy();
-                    break;
+            let maybe_hit_index: Option<usize> = (|| {
+                let mut shot_collidables: Vec<&mut dyn ShotCollidable> = Vec::new();
+                shot_collidables.extend(
+                    self.asteroids
+                        .iter_mut()
+                        .map(|a| a as &mut dyn ShotCollidable),
+                );
+                shot_collidables.push(&mut self.ufo);
+                for (i, collidable) in shot_collidables.iter().enumerate() {
+                    if collidable.did_collide(shot) {
+                        self.score += collidable.score();
+                        shot.destroy();
+                        return Some(i);
+                    }
                 }
-            }
+                None
+            })();
             if let Some(hit_index) = maybe_hit_index {
-                let maybe_new_asteroids = self.asteroids[hit_index].split();
-                if let Some(new_asteroids) = maybe_new_asteroids {
-                    self.asteroids.extend(new_asteroids);
+                if hit_index < self.asteroids.len() {
+                    let maybe_asteroids = self.asteroids[hit_index].split();
+                    if let Some(asteroids) = maybe_asteroids {
+                        new_asteroids.extend(asteroids);
+                    }
+                    self.asteroids[hit_index].destroy();
+                } else {
+                    self.ufo.destroy();
+                    self.debris.extend(self.ufo.get_debris());
                 }
-                // Remove destroyed or split
-                self.asteroids[hit_index].destroy();
             }
         }
+        self.asteroids.extend(new_asteroids);
     }
 
     fn handle_ship_collision(&mut self) {
         if !self.ship.alive() {
             return;
         }
-        for asteroid in self
-            .asteroids
-            .iter()
-            .filter(|&a| a.sz != AsteroidSize::Destroyed)
-        {
-            if asteroid_ship_collision(asteroid, &self.ship) {
+        let mut ship_collidables: Vec<&mut dyn ShipCollidable> = Vec::new();
+        ship_collidables.extend(self.asteroids.iter_mut().filter_map(|a| match a.sz {
+            AsteroidSize::Destroyed => None,
+            _ => Some(a as &mut dyn ShipCollidable),
+        }));
+        ship_collidables.push(&mut self.ufo as &mut dyn ShipCollidable);
+        for collidable in ship_collidables {
+            if collidable.did_collide(&self.ship) {
                 self.ship.destroy();
-                self.line_debris.extend(self.ship.spawn_debris(asteroid.v));
+                self.line_debris
+                    .extend(self.ship.spawn_debris(collidable.v()));
                 break;
             }
         }
@@ -289,10 +309,11 @@ impl Engine {
 
     fn render(&self) -> Html {
         html! {
-            <g>
+            <>
                 {self.debris.iter().map(|d| d.render()).collect::<Html>()}
                 {self.line_debris.iter().map(|d| d.render()).collect::<Html>()}
                 {self.ship.render()}
+                {self.ufo.render()}
                 {self.shots.iter().map(|s| s.render()).collect::<Html>()}
                 {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
                 <text
@@ -305,7 +326,7 @@ impl Engine {
                     font-family="monospace">
                     {self.score}
                 </text>
-            </g>
+            </>
         }
     }
 }
@@ -343,6 +364,7 @@ mod tests {
     use is_svg::is_svg_string;
     use p_test::p_test;
     use quickcheck::{Arbitrary, Gen, QuickCheck};
+    use quickcheck_macros::quickcheck;
     use std::collections::HashMap;
     use strum::IntoEnumIterator;
 
@@ -480,7 +502,7 @@ mod tests {
             engine_seed: u64,
             ship_seed: u64,
         ) -> bool {
-            let difficulty = difficulty % 500;
+            let difficulty = difficulty % 10;
             let mut engine = create_test_engine(difficulty, engine_seed, ship_seed);
             let run_count = QUICKCHECK_RUN_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
             println!(
@@ -489,6 +511,7 @@ mod tests {
                 actions.len(),
                 difficulty
             );
+            engine.update_impl(Msg::Tick);
             for game_key_input in actions {
                 if let Some((key, is_down_action)) = game_key_input.0 {
                     match is_down_action {
@@ -496,7 +519,6 @@ mod tests {
                         KeyAction::Up => engine.update_impl(Msg::Keyup(key)),
                     };
                 }
-                engine.update_impl(Msg::Tick);
 
                 struct AsteroidMap(HashMap<AsteroidSize, i32>);
                 impl AsteroidMap {
@@ -519,8 +541,9 @@ mod tests {
                 let score_before_loop = engine.score;
                 let shots_before_loop = engine.shots.len();
                 let asteroids_before_loop = count_asteroids(&engine.asteroids);
+                let ufo_score = engine.ufo.score();
 
-                engine.handle_loop_update();
+                engine.update_impl(Msg::Tick);
 
                 let score_after_loop = engine.score;
                 let shots_after_loop = engine.shots.len();
@@ -576,6 +599,8 @@ mod tests {
                     .map(|sz| destroyed_asteroids.0[&sz] * Asteroid::score_from_size(&sz))
                     .reduce(|acc, val| acc + val)
                     .expect("Score was not provided by reducer");
+                let score_from_destroyed =
+                    score_from_destroyed + if !engine.ufo.alive() { ufo_score } else { 0 };
 
                 assert_that!(
                     score_after_loop,
@@ -603,5 +628,13 @@ mod tests {
             .rng(Gen::new(arbitrary_size))
             .tests(tests)
             .quickcheck(run_engine as fn(Vec<GameKeyInput>, u32, u64, u64) -> bool)
+    }
+
+    #[quickcheck]
+    fn it_never_spawns_an_asteroid_on_the_ship(engine_seed: u64) {
+        let mut engine = create_test_engine(BASE_DIFFICULTY, engine_seed, 0);
+        engine.spawn_asteroid();
+        engine.handle_ship_collision();
+        assert_that!(engine.ship.alive(), is_true());
     }
 }

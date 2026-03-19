@@ -2,14 +2,17 @@ use crate::common;
 use crate::common::rng::get_rng;
 use crate::debris::LineDebris;
 use crate::engine::{GameContext, GameElement};
-use crate::math::{Point, point};
+use crate::math::{Point, point, polar_point};
 use crate::shot::Shot;
 use itertools::Itertools;
 use rand::RngExt;
 use yew::{Html, html};
 
-const BASE_SHOT_COOLDOWN_MS: f32 = 150.0;
+const BASE_SHOT_COOLDOWN_MS: f32 = 75.0;
 const THRUST_FACTOR: f32 = 3e-3;
+const THRUST_TTL_MS: f32 = 300.0;
+const THRUST_TTL_INC_MS: f32 = 30.0;
+const ROTATION_FACTOR: f32 = std::f32::consts::PI / 250.0;
 
 pub struct Ship {
     pub p: Point,
@@ -19,9 +22,10 @@ pub struct Ship {
     sz: f32,
     w: f32,
     h: f32,
-    shot_cooldown: f32,
+    shot_cooldown_ms: f32,
     maybe_seed: Option<u64>,
     is_destroyed: bool,
+    thrust_ttl_ms: f32,
 }
 impl Ship {
     pub fn create(w: f32, h: f32, maybe_seed: Option<u64>) -> Ship {
@@ -36,9 +40,10 @@ impl Ship {
             sz: 10.0,
             w,
             h,
-            shot_cooldown: 0.0,
+            shot_cooldown_ms: 0.0,
             maybe_seed,
             is_destroyed: false,
+            thrust_ttl_ms: 0.0,
         }
     }
 
@@ -52,24 +57,27 @@ impl Ship {
             sz: 10.0,
             w: 100.0,
             h: 100.0,
-            shot_cooldown: 0.0,
+            shot_cooldown_ms: 0.0,
             maybe_seed: Some(0),
             is_destroyed: false,
+            thrust_ttl_ms: 0.0,
         }
     }
 
     pub fn thrust(&mut self) {
         let dv = Point::from_polar(THRUST_FACTOR, self.theta_rad);
+        self.thrust_ttl_ms += THRUST_TTL_INC_MS;
+        self.thrust_ttl_ms = self.thrust_ttl_ms.clamp(0.0, THRUST_TTL_MS);
         self.v.x += dv.x;
         self.v.y += dv.y;
     }
 
     pub fn rotate_left(&mut self) {
-        self.omega_rad = -std::f32::consts::PI / 180.0;
+        self.omega_rad = -ROTATION_FACTOR;
     }
 
     pub fn rotate_right(&mut self) {
-        self.omega_rad = std::f32::consts::PI / 180.0;
+        self.omega_rad = ROTATION_FACTOR;
     }
 
     pub fn stop_rotate(&mut self) {
@@ -77,10 +85,10 @@ impl Ship {
     }
 
     pub fn shoot(&mut self) -> Option<Shot> {
-        if self.shot_cooldown > 0.0 || self.is_destroyed {
+        if self.shot_cooldown_ms > 0.0 || self.is_destroyed {
             None
         } else {
-            self.shot_cooldown = BASE_SHOT_COOLDOWN_MS;
+            self.shot_cooldown_ms = BASE_SHOT_COOLDOWN_MS;
             Some(Shot::create(self.p, self.v, self.theta_rad))
         }
     }
@@ -123,7 +131,9 @@ impl GameElement for Ship {
         self.theta_rad += self.omega_rad * ctx.t;
         self.p += self.v * ctx.t;
         self.p.wrap(ctx.w, ctx.h);
-        self.shot_cooldown -= ctx.t;
+        self.shot_cooldown_ms -= ctx.t;
+        self.thrust_ttl_ms -= ctx.t;
+        self.thrust_ttl_ms = self.thrust_ttl_ms.clamp(0.0, THRUST_TTL_MS);
     }
 
     fn alive(&self) -> bool {
@@ -142,7 +152,24 @@ impl GameElement for Ship {
             </text> }
         } else {
             let points = self.polygon().into_iter().join(" ");
-            html! { <polygon points={points} stroke="white" /> }
+            let thrusters = {
+                let p1 = polar_point!(self.sz * 0.3, self.theta_rad + 0.5 * std::f32::consts::PI);
+                let p2 = polar_point!(self.sz * 0.3, self.theta_rad - 0.5 * std::f32::consts::PI);
+                let p3 = polar_point!(
+                    self.sz * self.thrust_ttl_ms / THRUST_TTL_MS,
+                    self.theta_rad + std::f32::consts::PI
+                );
+                [p1, p2, p3]
+                    .iter()
+                    .map(|p| *p + self.p)
+                    .collect::<Vec<Point>>()
+            };
+            html! {
+            <g>
+            <polygon points={thrusters.into_iter().join(" ")} stroke="orange" />
+            <polygon points={points} stroke="white" />
+            </g>
+             }
         }
     }
 

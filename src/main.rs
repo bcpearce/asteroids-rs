@@ -5,9 +5,11 @@ mod collisions;
 mod common;
 mod debris;
 mod engine;
+mod ferris;
 mod math;
 mod ship;
 mod shot;
+mod ufo;
 
 use engine::Engine;
 use yew::prelude::*;

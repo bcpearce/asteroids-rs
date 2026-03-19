@@ -2,16 +2,19 @@ use std::rc::Rc;
 use strum_macros::EnumIter;
 
 use crate::{
+    collisions::{ShipCollidable, ShotCollidable},
     common,
     debris::Debris,
     engine::{GameContext, GameElement},
-    math::Point,
+    math::{Point, point},
+    ship::Ship,
+    shot::Shot,
 };
 use itertools::Itertools;
 use rand::RngExt;
 use yew::{Html, html};
 
-const MIN_ASTEROID_RADIUS: f32 = 2.0;
+const MIN_ASTEROID_RADIUS: f32 = 5.0;
 const MAX_ASTEROID_RADIUS: f32 = 15.0;
 const MIN_ASTEROID_VELOCITY: f32 = 0.03;
 const MAX_ASTEROID_VELOCITY: f32 = 0.11;
@@ -31,7 +34,7 @@ pub struct Asteroid {
     pub v: Point,
     edge_points: Rc<Vec<Point>>,
     pub sz: Size,
-    pub hue: u32,
+    pub hue: f32,
 }
 
 impl Asteroid {
@@ -42,19 +45,24 @@ impl Asteroid {
             v,
             edge_points: Rc::from(edge_points),
             sz,
-            hue: 0,
+            hue: 0.0,
         }
     }
 
-    pub fn spawn(w: f32, h: f32, maybe_seed: Option<u64>) -> Asteroid {
+    pub fn spawn(ctx: &GameContext, maybe_seed: Option<u64>) -> Asteroid {
+        let (w, h) = (ctx.w, ctx.h);
         let mut rng = common::rng::get_rng(maybe_seed);
         let max_angle_rads = std::f32::consts::PI / 3.0; // 6 side ish
         let min_angle_rads = std::f32::consts::PI / 5.5; // 11 side ish
         let mut edge_points = Vec::new();
         let mut t = rng.random_range(min_angle_rads..max_angle_rads);
-        let p = Point {
-            x: rng.random_range(0.0..=w),
-            y: rng.random_range(0.0..=h),
+        let spawn_edge = rng.random_range(0..4);
+        let p = match spawn_edge {
+            0 => point!(rng.random_range(0.0..w), 0),
+            1 => point!(rng.random_range(0.0..w), h),
+            2 => point!(0, rng.random_range(0.0..h)),
+            3 => point!(w, rng.random_range(0.0..h)),
+            _ => unreachable!("rng only creates between [0, 4)"),
         };
         while t < std::f32::consts::PI * 2.0 {
             let r = rng.random_range(MIN_ASTEROID_RADIUS..=MAX_ASTEROID_RADIUS);
@@ -68,7 +76,7 @@ impl Asteroid {
             2 => Size::Small,
             _ => Size::Destroyed,
         };
-        let hue = rng.random_range(0..360);
+        let hue = rng.random_range(0.0..360.0);
         Asteroid {
             p,
             v: Point::from_polar(
@@ -97,10 +105,6 @@ impl Asteroid {
             Size::Small => 50,
             Size::Destroyed => 0,
         }
-    }
-
-    pub fn score(&self) -> i32 {
-        Self::score_from_size(&self.sz)
     }
 
     pub fn split(&self) -> Option<[Self; 2]> {
@@ -174,6 +178,33 @@ impl GameElement for Asteroid {
     }
 }
 
+impl ShipCollidable for Asteroid {
+    fn did_collide(&self, ship: &Ship) -> bool {
+        let ship_polygon = ship.polygon();
+        let asteroid_polygon = self.polygon();
+        ship_polygon
+            .iter()
+            .any(|p| p.in_polygon(&asteroid_polygon).unwrap_or(false))
+            || asteroid_polygon
+                .iter()
+                .any(|p| p.in_polygon(&ship_polygon).unwrap_or(false))
+    }
+
+    fn v(&self) -> Point {
+        self.v
+    }
+}
+
+impl ShotCollidable for Asteroid {
+    fn did_collide(&self, shot: &Shot) -> bool {
+        shot.alive() && self.alive() && shot.p.in_polygon(&self.polygon()).unwrap()
+    }
+
+    fn score(&self) -> i32 {
+        Self::score_from_size(&self.sz)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,7 +220,12 @@ mod tests {
         h: PositiveFloat,
         seed: u64,
     ) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0, Some(seed));
+        let ctx = GameContext {
+            w: w.0,
+            h: h.0,
+            t: 33.0,
+        };
+        let a = Asteroid::spawn(&ctx, Some(seed));
         TestResult::from_bool(a.p.x <= w.0 && a.p.y <= h.0)
     }
 
@@ -204,8 +240,8 @@ mod tests {
         let w = w.0;
         let h = h.0;
         let t = t.0 % 10_000.0;
-        let mut a = Asteroid::spawn(w, h, Some(seed));
         let ctx = GameContext { w, h, t };
+        let mut a = Asteroid::spawn(&ctx, Some(seed));
         let iter_count = iter_count % 5000; // limit to 5000 iterations
         for i in 0..iter_count {
             a.update(&ctx);
@@ -220,13 +256,23 @@ mod tests {
 
     #[quickcheck]
     fn it_is_a_polygon(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0, Some(seed));
+        let ctx = GameContext {
+            w: w.0,
+            h: h.0,
+            t: 33.0,
+        };
+        let a = Asteroid::spawn(&ctx, Some(seed));
         TestResult::from_bool(a.edge_points.len() >= 3)
     }
 
     #[quickcheck]
     fn it_renders_valid_svg(w: PositiveFloat, h: PositiveFloat, seed: u64) -> TestResult {
-        let a = Asteroid::spawn(w.0, h.0, Some(seed));
+        let ctx = GameContext {
+            w: w.0,
+            h: h.0,
+            t: 33.0,
+        };
+        let a = Asteroid::spawn(&ctx, Some(seed));
         let svg_wrap = format!("<svg>{:?}</svg>", a.render());
         TestResult::from_bool(is_svg_string(svg_wrap))
     }

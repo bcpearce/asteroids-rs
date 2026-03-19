@@ -24,6 +24,24 @@ macro_rules! polar_point {
 }
 pub(crate) use polar_point;
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Ellipse {
+    pub center: Point,
+    pub ax: f32,
+    pub by: f32,
+}
+
+macro_rules! ellipse {
+    ($x:expr, $y:expr, $width:expr, $height:expr) => {
+        Ellipse {
+            center: point!($x, $y),
+            ax: $width,
+            by: $height,
+        }
+    };
+}
+pub(crate) use ellipse;
+
 impl Point {
     pub fn from_polar(r: f32, theta: f32) -> Point {
         let (sin, cos) = theta.sin_cos();
@@ -116,6 +134,18 @@ impl Point {
             }
         }
         Ok(intersections % 2 == 1)
+    }
+
+    pub fn in_ellipse(&self, ellipse: &Ellipse) -> bool {
+        if ellipse.ax == 0.0 {
+            self.x == ellipse.center.x && (self.y - ellipse.center.y).abs() <= ellipse.by
+        } else if ellipse.by == 0.0 {
+            self.y == ellipse.center.y && (self.x - ellipse.center.x).abs() <= ellipse.ax
+        } else {
+            (self.x - ellipse.center.x).powi(2) / ellipse.ax.powi(2)
+                + (self.y - ellipse.center.y).powi(2) / ellipse.by.powi(2)
+                <= 1.0
+        }
     }
 }
 
@@ -287,13 +317,18 @@ mod point_tests {
         assert_that!(point.in_polygon(&polygon).unwrap(), eq(expect_inside));
     }
 
-    impl Arbitrary for Point {
-        fn arbitrary(g: &mut Gen) -> Self {
-            Point {
-                x: f32::arbitrary(g),
-                y: f32::arbitrary(g),
-            }
-        }
+    #[p_test(
+        "at origin", (point!(0.0, 0.0),ellipse!(0, 0, 1.0, 0.5), true),
+        "inside at(0.0,0.4)", (point!(0.0,0.4),ellipse!(0, 0, 1.0, 0.5), true),
+        "inside at(0.0,n0.4)", (point!(0.0,-0.4),ellipse!(0, 0, 1.0, 0.5), true),
+        "inside at(0.9,0.0)", (point!(0.9,0.0),ellipse!(0, 0, 1.0, 0.5), true),
+        "inside at(n0.9,0.0)", (point!(-0.9,0.0),ellipse!(0, 0, 1.0, 0.5), true),
+        "outside at(1.1,0.0)", (point!(1.1,0.0),ellipse!(0, 0, 1.0, 0.5), false),
+        "on edge at(0.0,0.5)", (point!(0.0,0.5),ellipse!(0, 0, 1.0, 0.5), true),
+        "on edge at(n1.0,0.0)", (point!(-1.0,0.0),ellipse!(0, 0, 1.0, 0.5), true),
+    )]
+    fn it_determines_point_in_ellipse(point: Point, ellipse: Ellipse, expect_inside: bool) {
+        assert_that!(point.in_ellipse(&ellipse), eq(expect_inside));
     }
 
     #[quickcheck]
@@ -314,6 +349,38 @@ mod point_tests {
             TestResult::passed()
         } else {
             TestResult::discard()
+        }
+    }
+
+    #[quickcheck]
+    fn it_always_contains_points_within_minor_axis(
+        width: f32,
+        height: f32,
+        p: Point,
+        theta_rad: f32,
+    ) -> TestResult {
+        const MAX_AXIS: f32 = 1e5;
+        if p.x.is_finite()
+            && p.y.is_finite()
+            && theta_rad.is_finite()
+            && (-MAX_AXIS..MAX_AXIS).contains(&p.x)
+            && (-MAX_AXIS..MAX_AXIS).contains(&p.y)
+            && (0.0..MAX_AXIS).contains(&width)
+            && (0.0..MAX_AXIS).contains(&height)
+        {
+            let inside = polar_point!(width.min(height), theta_rad) + p;
+            TestResult::from_bool(inside.in_ellipse(&ellipse!(p.x, p.y, width, height)))
+        } else {
+            TestResult::discard()
+        }
+    }
+
+    impl Arbitrary for Point {
+        fn arbitrary(g: &mut Gen) -> Self {
+            Point {
+                x: f32::arbitrary(g),
+                y: f32::arbitrary(g),
+            }
         }
     }
 }

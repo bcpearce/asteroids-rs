@@ -9,20 +9,23 @@ use rand::RngExt;
 use yew::{Html, html};
 
 const BASE_SHOT_COOLDOWN_MS: f32 = 75.0;
+const BASE_HYPERSPACE_COOLDOWN_MS: f32 = 1500.0;
 const THRUST_FACTOR: f32 = 3e-3;
 const THRUST_TTL_MS: f32 = 300.0;
 const THRUST_TTL_INC_MS: f32 = 30.0;
 const ROTATION_FACTOR: f32 = std::f32::consts::PI / 250.0;
+const SHIP_SZ: f32 = 10.0;
 
 pub struct Ship {
     pub p: Point,
     pub v: Point,
     omega_rad: f32,
     theta_rad: f32,
-    sz: f32,
     w: f32,
     h: f32,
     shot_cooldown_ms: f32,
+    hyperspace_p: Point,
+    hyperspace_cooldown_ms: f32,
     maybe_seed: Option<u64>,
     is_destroyed: bool,
     thrust_ttl_ms: f32,
@@ -30,17 +33,15 @@ pub struct Ship {
 impl Ship {
     pub fn create(w: f32, h: f32, maybe_seed: Option<u64>) -> Ship {
         Ship {
-            p: Point {
-                x: w / 2.0,
-                y: h / 2.0,
-            },
-            v: Point { x: 0.0, y: 0.0 },
+            p: point!(w / 2.0, h / 2.0),
+            v: point!(0, 0),
             omega_rad: 0.0,
             theta_rad: std::f32::consts::PI * 0.25,
-            sz: 10.0,
             w,
             h,
             shot_cooldown_ms: 0.0,
+            hyperspace_p: point!(w / 2.0, h / 2.0),
+            hyperspace_cooldown_ms: 0.0,
             maybe_seed,
             is_destroyed: false,
             thrust_ttl_ms: 0.0,
@@ -54,10 +55,11 @@ impl Ship {
             v: Point { x: 0.0, y: 0.0 },
             omega_rad: 0.0,
             theta_rad: std::f32::consts::PI * 0.25,
-            sz: 10.0,
             w: 100.0,
             h: 100.0,
             shot_cooldown_ms: 0.0,
+            hyperspace_p: point!(0, 0),
+            hyperspace_cooldown_ms: 0.0,
             maybe_seed: Some(0),
             is_destroyed: false,
             thrust_ttl_ms: 0.0,
@@ -94,19 +96,25 @@ impl Ship {
     }
 
     pub fn hyperspace(&mut self) {
-        let mut rng = get_rng(self.maybe_seed);
-        self.p.x = rng.random_range(0.0..=self.w);
-        self.p.y = rng.random_range(0.0..=self.h);
-        self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
-        self.v = Point { x: 0.0, y: 0.0 };
+        if self.hyperspace_cooldown_ms < 0.0 {
+            self.hyperspace_p = self.p;
+            let mut rng = get_rng(self.maybe_seed);
+            self.p.x = rng.random_range(0.0..=self.w);
+            self.p.y = rng.random_range(0.0..=self.h);
+            self.theta_rad = rng.random_range(0.0..=2.0 * std::f32::consts::PI);
+            self.v = Point { x: 0.0, y: 0.0 };
+            self.hyperspace_cooldown_ms = BASE_HYPERSPACE_COOLDOWN_MS;
+        }
     }
 
     pub fn polygon(&self) -> Vec<Point> {
-        let p1 = Point::from_polar(self.sz, self.theta_rad) + self.p;
-        let p2 =
-            Point::from_polar(self.sz * 0.6, self.theta_rad + 0.75 * std::f32::consts::PI) + self.p;
-        let p3 =
-            Point::from_polar(self.sz * 0.6, self.theta_rad - 0.75 * std::f32::consts::PI) + self.p;
+        Self::polygon_at_point_and_rotation(self.p, self.theta_rad)
+    }
+
+    pub fn polygon_at_point_and_rotation(p: Point, theta_rad: f32) -> Vec<Point> {
+        let p1 = Point::from_polar(SHIP_SZ, theta_rad) + p;
+        let p2 = Point::from_polar(SHIP_SZ * 0.6, theta_rad + 0.75 * std::f32::consts::PI) + p;
+        let p3 = Point::from_polar(SHIP_SZ * 0.6, theta_rad - 0.75 * std::f32::consts::PI) + p;
         vec![p1, p2, p3]
     }
 
@@ -133,6 +141,7 @@ impl GameElement for Ship {
         self.p.wrap(ctx.w, ctx.h);
         self.shot_cooldown_ms -= ctx.t;
         self.thrust_ttl_ms -= ctx.t;
+        self.hyperspace_cooldown_ms -= ctx.t;
         self.thrust_ttl_ms = self.thrust_ttl_ms.clamp(0.0, THRUST_TTL_MS);
     }
 
@@ -141,36 +150,76 @@ impl GameElement for Ship {
     }
 
     fn render(&self) -> Html {
-        if self.is_destroyed {
-            html! { <text x={(self.w / 2.0).to_string()} y={(self.h / 2.0).to_string()}
-            text-anchor="middle"
-            dominant-baseline="middle"
-            fill="#FF0000"
-            font-size="20"
-            font-family="monospace">
-                {"Game Over"}
-            </text> }
-        } else {
-            let points = self.polygon().into_iter().join(" ");
-            let thrusters = {
-                let p1 = polar_point!(self.sz * 0.3, self.theta_rad + 0.5 * std::f32::consts::PI);
-                let p2 = polar_point!(self.sz * 0.3, self.theta_rad - 0.5 * std::f32::consts::PI);
-                let p3 = polar_point!(
-                    self.sz * self.thrust_ttl_ms / THRUST_TTL_MS,
-                    self.theta_rad + std::f32::consts::PI
-                );
-                [p1, p2, p3]
-                    .iter()
-                    .map(|p| *p + self.p)
-                    .collect::<Vec<Point>>()
-            };
-            html! {
-            <g>
-            <polygon points={thrusters.into_iter().join(" ")} stroke="orange" />
-            <polygon points={points} stroke="white" />
-            </g>
-             }
-        }
+        let points = self.polygon().into_iter().join(" ");
+        let thrusters = {
+            let p1 = polar_point!(SHIP_SZ * 0.3, self.theta_rad + 0.5 * std::f32::consts::PI);
+            let p2 = polar_point!(SHIP_SZ * 0.3, self.theta_rad - 0.5 * std::f32::consts::PI);
+            let p3 = polar_point!(
+                SHIP_SZ * self.thrust_ttl_ms / THRUST_TTL_MS,
+                self.theta_rad + std::f32::consts::PI
+            );
+            [p1, p2, p3]
+                .iter()
+                .map(|p| *p + self.p)
+                .collect::<Vec<Point>>()
+        };
+        let hyperspace_path = {
+            const STAR_POINT_MAG: f32 = 3.0;
+            const CONTROL_MAG: f32 = 0.02;
+            let factor =
+                self.hyperspace_cooldown_ms * (1.0 / BASE_HYPERSPACE_COOLDOWN_MS) * STAR_POINT_MAG;
+            let corners = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)]
+                .iter()
+                .map(|(xp, yp)| self.hyperspace_p + point!(*xp, *yp) * factor)
+                .collect::<Vec<Point>>();
+            let controls = [
+                (CONTROL_MAG, CONTROL_MAG),
+                (-CONTROL_MAG, CONTROL_MAG),
+                (-CONTROL_MAG, -CONTROL_MAG),
+                (-CONTROL_MAG, CONTROL_MAG),
+            ]
+            .iter()
+            .map(|(xp, yp)| self.hyperspace_p + point!(*xp, *yp) * factor)
+            .collect::<Vec<Point>>();
+            format!(
+                "M {} {} Q {} {}, {} {} M {} {} Q {} {}, {} {} M {} {} Q {} {}, {} {} M {} {} Q {} {}, {} {}",
+                corners[0].x,
+                corners[0].y,
+                controls[0].x,
+                controls[0].y,
+                corners[1].x,
+                corners[1].y,
+                corners[1].x,
+                corners[1].y,
+                controls[1].x,
+                controls[1].y,
+                corners[2].x,
+                corners[2].y,
+                corners[2].x,
+                corners[2].y,
+                controls[2].x,
+                controls[2].y,
+                corners[3].x,
+                corners[3].y,
+                corners[3].x,
+                corners[3].y,
+                controls[3].x,
+                controls[3].y,
+                corners[0].x,
+                corners[0].y,
+            )
+        };
+        html! {
+        <g>
+            if self.alive() {
+                <polygon points={thrusters.into_iter().join(" ")} stroke="orange" />
+                <polygon points={points} stroke="white" />
+            } else {<></>}
+            if self.hyperspace_cooldown_ms > 0.0 {
+                <path d={hyperspace_path} stroke="white"/>
+            }
+        </g>
+         }
     }
 
     fn destroy(&mut self) {

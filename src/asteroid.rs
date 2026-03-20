@@ -111,7 +111,7 @@ impl Asteroid {
         fn helper(a: &Asteroid, rotation: f32, new_size: Size) -> Asteroid {
             Asteroid {
                 p: a.p,
-                v: a.v.rotate(rotation),
+                v: a.v.rotate(rotation) * 1.2,
                 edge_points: a.edge_points.clone(),
                 sz: new_size,
                 hue: a.hue,

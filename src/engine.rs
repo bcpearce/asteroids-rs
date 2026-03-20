@@ -3,11 +3,14 @@ use crate::asteroid::Size as AsteroidSize;
 use crate::collisions::ShipCollidable;
 use crate::collisions::ShotCollidable;
 use crate::debris::{Debris, LineDebris};
+use crate::math::Point;
+use crate::math::point;
 use crate::ship::Ship;
 use crate::shot::Shot;
 use crate::ufo::Ufo;
 use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
+use itertools::Itertools;
 use std::collections::HashMap;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -79,6 +82,7 @@ pub struct Engine {
     line_debris: Vec<LineDebris>,
     difficulty: u32,
     score: i32,
+    extra_lives: i32,
     maybe_seed: Option<u64>,
     keymap: KeyMap,
     _maybe_window_event_handler: Option<WindowEventHandler>,
@@ -133,6 +137,7 @@ impl Engine {
             line_debris: Vec::new(),
             difficulty,
             score: 0,
+            extra_lives: 3,
             maybe_seed: maybe_engine_seed,
             keymap: HashMap::new(),
             _maybe_window_event_handler: maybe_window_event_handler,
@@ -215,6 +220,11 @@ impl Engine {
         }
     }
 
+    fn respawn_ship(&mut self) {
+        self.ship = Ship::create(self.w as f32, self.h as f32, self.maybe_seed);
+        self.line_debris.clear();
+    }
+
     fn handle_shot_collision(&mut self) {
         let mut new_asteroids: Vec<Asteroid> = Vec::new();
         for shot in self.shots.iter_mut().filter(|s| s.alive()) {
@@ -266,6 +276,7 @@ impl Engine {
                 self.ship.destroy();
                 self.line_debris
                     .extend(self.ship.spawn_debris(collidable.v()));
+                self.extra_lives -= 1;
                 break;
             }
         }
@@ -282,7 +293,13 @@ impl Engine {
         match key_code {
             A_CODE_L | A_CODE_U => self.ship.rotate_left(),
             D_CODE_L | D_CODE_U => self.ship.rotate_right(),
-            H_CODE_L | H_CODE_U => self.ship.hyperspace(),
+            H_CODE_L | H_CODE_U => {
+                if self.ship.alive() {
+                    self.ship.hyperspace()
+                } else if self.extra_lives > 0 {
+                    self.respawn_ship();
+                }
+            }
             SPACE_CODE => self.add_shot(),
             65..=90 => {
                 // Force lowercase entry
@@ -307,26 +324,79 @@ impl Engine {
         }
     }
 
-    fn render(&self) -> Html {
+    fn render_hud(&self) -> Html {
+        let w = self.w as f32;
+        let h = self.h as f32;
+        let text_anchor = point!(w * 0.1, h * 0.1);
+        let lives_anchors: Vec<Point> = (0..self.extra_lives)
+            .map(|i| point!(w * 0.08 + (i as f32 * w * 0.03), h * 0.15))
+            .collect();
+        let lives_polygons = lives_anchors.into_iter().map(|p| {
+            Ship::polygon_at_point_and_rotation(p, -0.5 * std::f32::consts::PI)
+                .into_iter()
+                .join(" ")
+        });
         html! {
-            <>
-                {self.debris.iter().map(|d| d.render()).collect::<Html>()}
-                {self.line_debris.iter().map(|d| d.render()).collect::<Html>()}
-                {self.ship.render()}
-                {self.ufo.render()}
-                {self.shots.iter().map(|s| s.render()).collect::<Html>()}
-                {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
-                <text
-                    x={(self.w as f32 * 0.1).to_string()}
-                    y={(self.h as f32 * 0.1).to_string()}
-                    fill="#FFFFFF"
-                    stroke="#000000"
-                    stroke-width="0.3"
-                    font-size="25"
-                    font-family="monospace">
-                    {self.score}
-                </text>
-            </>
+        <g>
+            <text
+                x={(text_anchor.x).to_string()}
+                y={(text_anchor.y).to_string()}
+                fill="#FFFFFF"
+                stroke="#000000"
+                stroke-width="0.3"
+                font-size="25"
+                font-family="monospace">
+                {self.score}
+            </text>
+            {
+                if !self.ship.alive() {
+                    html! {
+                        <text x={(self.w as f32 / 2.0).to_string()} y={(self.h as f32 / 2.0).to_string()}
+                            text-anchor="middle"
+                            dominant-baseline="middle"
+                            fill="#FF0000"
+                            font-size="20"
+                            font-family="monospace">
+                        {
+                            if self.extra_lives > 0 {
+                                "Press 'H' to respawn"
+                            } else {
+                                "Game Over"
+                            }
+                        }
+                        </text>
+                    }
+                } else {html!{<></>}}
+            }
+            {
+                lives_polygons.into_iter().map(|points| html!{
+                    <polygon points={points} stroke="white"/>
+                }).collect::<Html>()
+            }
+        </g>
+        }
+    }
+
+    fn render(&self) -> Html {
+        let view_box = format!("0 0 {} {}", self.w, self.h);
+        html! {
+            <svg class="svg-container" viewBox={view_box}>
+                <rect width="100%" height="100%" fill="#000"/>
+                <defs>
+                    <clipPath id="fieldOfView">
+                        <rect x="0" y="0" width={self.w.to_string()} height={self.h.to_string()}/>
+                    </clipPath>
+                </defs>
+                <g clip-path="url(#fieldOfView)">
+                    {self.render_hud()}
+                    {self.debris.iter().map(|d| d.render()).collect::<Html>()}
+                    {self.line_debris.iter().map(|d| d.render()).collect::<Html>()}
+                    {self.ship.render()}
+                    {self.ufo.render()}
+                    {self.shots.iter().map(|s| s.render()).collect::<Html>()}
+                    {self.asteroids.iter().map(|a| a.render()).collect::<Html>()}
+                    </g>
+            </svg>
         }
     }
 }
@@ -344,11 +414,8 @@ impl Component for Engine {
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
-        let view_box = format!("0 0 {} {}", self.w, self.h);
         html! {
-        <svg class="svg-container" viewBox={view_box}>
-            {self.render()}
-        </svg>
+            self.render()
         }
     }
 }

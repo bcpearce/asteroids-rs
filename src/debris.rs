@@ -24,7 +24,8 @@ impl GameElement for Debris {
         html! {<circle
         cx={self.p.x.to_string()}
         cy={self.p.y.to_string()}
-        stroke={hsl}
+        stroke={hsl.to_string()}
+        fill={hsl.to_string()}
         r="0.1" />}
     }
 
